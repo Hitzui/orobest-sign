@@ -12,7 +12,7 @@ import org.koin.dsl.koinConfiguration
 fun App() {
     KoinApplication(configuration = koinConfiguration { modules(appModules) }) {
         ComposablesTheme {
-            // Las pantallas se incorporarán después de aprobar la integración web.
+            // Las pantallas se incorporarán en la siguiente etapa.
         }
     }
 }

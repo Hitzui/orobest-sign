@@ -4,4 +4,4 @@ Responsabilidad prevista: representar y mostrar la agencia devuelta por la sesi�
 
 El servidor obtiene `usuario.idagencia` y valida que la agencia esté activa. El filtro de compras se aplica mediante `compra.idcaja → caja.idagencia`.
 
-Los modelos y las capas se incorporarán al aprobar el contrato; ver `docs/ANALISIS_WEB.md`.
+`domain/model/Agency.kt` representa la agencia del perfil de sesión. La API valida su estado en cada petición; ver `docs/ANALISIS_WEB.md` y `docs/PROPUESTA_API.md`.

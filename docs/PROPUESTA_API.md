@@ -1,141 +1,114 @@
-# Propuesta de integración API — pendiente de aprobación
+# API Sign v1 — contrato aprobado e implementado localmente
 
-Este documento es una propuesta para consultar al propietario del proyecto. **No se han creado APIs, migraciones ni archivos de despliegue en la web.** Los nombres, rutas y tablas siguientes todavía pueden ajustarse.
+Acuerdos del propietario: módulo `sign`, todos los usuarios activos (incluidos caja), compras de la agencia completa, sesión persistente, firma editable y dos tablas nuevas sin alterar las existentes. La imagen se usará en el comprobante; su ubicación visual se decidirá después.
 
-## 1. Organización propuesta
+Producción prevista: **`https://orobestni.com/api/sign/v1/`**. El propietario subirá los archivos y sincronizará el esquema; esta entrega no accede a la base del hosting.
 
-Reservar **`/api/sign/v1`** para OroBest Sign dentro del backend Yii existente.
+Código entregable: [`backend/orobest`](../backend/orobest). Instrucciones exactas: [DESPLIEGUE_HOSTING.md](DESPLIEGUE_HOSTING.md).
 
-Ubicación orientativa del código web:
+## Autenticación y persistencia
 
-```text
-modules/sign/
-  Module.php
-  controllers/
-    AuthController.php
-    ComprasController.php
-  components/
-    SignBearerAuth.php
-  services/
-    AuthService.php
-    CompraAccessService.php
-    FirmaService.php
-  models/
-    SignApiToken.php
-    CompraFirma.php
+Sin rol ni permiso adicional de firmas: cualquier usuario **activo**, con nombre de acceso no ambiguo, contraseña válida y agencia activa puede entrar. No se requiere caja asignada para acceder a las compras de su agencia. Los nombres duplicados deben corregirse desde administración; la API no escoge arbitrariamente una cuenta.
+
+Los tokens Sign son independientes de RRHH, se guardan mediante SHA-256 y duran **90 días de inactividad**. Cada petición autenticada renueva esa ventana. El plazo es configurable en `config/sign.php`; no depende del cierre de sesión web a los diez minutos.
+
+Cada petición vuelve a consultar usuario y agencia actuales. Un cambio de agencia surte efecto en la siguiente petición; `/auth/me` permite al móvil actualizar el contexto. Un usuario desactivado, un token revocado o vencido reciben `401`; agencia no disponible, `403`.
+
+KMP dispone de repositorio de autenticación y restauración de sesión. Android almacena el token cifrado AES-GCM con clave Android Keystore; iOS usa Keychain, solo en el mismo dispositivo. No se guarda la contraseña. JVM conserva la sesión en memoria por ser un destino auxiliar de desarrollo. Una falta de conexión al restaurar no elimina el token; un `401` confirmado sí. El uso desde pantallas queda para la siguiente etapa.
+
+## Rutas
+
+Todas bajo `/api/sign/v1`, con `Accept: application/json`. Salvo login, requieren `Authorization: Bearer <token>`.
+
+| Método | Ruta | Función |
+| --- | --- | --- |
+| POST | `auth/login` | Iniciar sesión con JSON `username`, `password` |
+| GET | `auth/me` | Identidad, agencia y vencimiento renovado |
+| POST | `auth/logout` | Revocar únicamente el token utilizado |
+| GET | `compras` | Compras vigentes de todas las cajas de la agencia |
+| GET | `compras/{idcompra}` | Detalle resumido y revisión para firmar |
+| POST | `compras/{idcompra}/firma` | Crear o editar firma mediante nueva versión |
+| GET | `compras/{idcompra}/firma` | Imagen actual autorizada |
+| GET | `compras/{idcompra}/firma?version=N` | Imagen de una versión anterior |
+
+## Respuestas de sesión
+
+Login devuelve:
+
+```json
+{
+  "success": true,
+  "data": {
+    "access_token": "<token emitido solo al iniciar sesión>",
+    "token_type": "Bearer",
+    "expires_at": "2027-01-13T00:00:00Z",
+    "usuario": { "idusuario": 123, "username": "usuario", "nombre": "Nombre" },
+    "agencia": { "idagencia": 1, "codagencia": "A", "descripcion": "Sucursal" }
+  }
+}
 ```
 
-El módulo podrá reutilizar `app\models\Usuario`, `Compra`, `Caja` y `Agencia`. Un único servicio de acceso aplicará la pertenencia por agencia a listado, detalle y firma. Las rutas propuestas se dirigirían al módulo `sign` mediante reglas explícitas en Yii.
+Los datos del ejemplo son ilustrativos. `me` devuelve el mismo perfil sin reenviar el token. Logout devuelve `data.logged_out = true`.
 
-La versión aparece en la URL para fijar el contrato del móvil. La configuración y los controladores actuales de compras, agencias y RRHH conservan su contrato.
+## Listado y detalle de compras
 
-## 2. Autenticación propuesta
+La pertenencia se obtiene por `compra.idcaja → caja.idagencia`, comparada con `usuario.idagencia`. No se filtra por la caja asignada ni por el creador de la compra.
 
-Inicio con `username` y `password` existentes. Validar en el backend:
+Parámetros opcionales del listado:
 
-1. Credenciales válidas y nombre de usuario no ambiguo.
-2. Cuenta activa.
-3. Agencia existente y activa.
-4. Permiso explícito de firmas, cuyo nombre debe acordarse; sugerencia: `firmarCompras` mediante el RBAC ya existente.
+- `page`: desde 1; por defecto 1.
+- `page_size`: de 1 a 100; por defecto 20.
+- `desde`, `hasta`: fechas `YYYY-MM-DD`, ambos días incluidos.
+- `q`: búsqueda por número de compra, hasta 100 caracteres.
+- `firma`: `firmada` o `pendiente`.
 
-Emitir un token opaco propio de Sign, conservando únicamente su hash en una tabla auxiliar. Incluir revocación y expiración de sesión. Confirmar la duración antes de implementarlo.
+Sin fechas se incluyen todas las compras vigentes de la agencia. No se fuerza un filtro de hoy. El orden es fecha descendente, luego `idcompra` descendente. Se rechazan `idagencia`, `idcaja` e `idusuario` como filtros elegibles por el móvil.
 
-El token de RRHH y `usuario.access_token` no se reutilizarían para este módulo. El campo de contraseñas y la estructura de `usuario` pueden mantenerse.
+`data.items` contiene `idcompra`, `numcompra`, `fecha` con zona `-06:00`, `estado`, `total` como texto decimal exacto, cliente mínimo si existe y metadatos de firma o `null`. `data.pagination` contiene `page`, `page_size`, `total` y `total_pages`.
 
-En cada operación protegida se vuelven a comprobar estado, agencia y permiso actuales; una reasignación de agencia invalida el contexto anterior del móvil y requiere actualizar la sesión. La respuesta de sesión incluiría identidad mínima y agencia autorizada.
+El detalle añade `revision` (hash del contenido actual de compra/detalles) y, si hay firma, `firma.compra_modificada`. Es necesario consultar ese detalle antes de capturar/enviar una firma. No se exponen rutas de archivos, hashes de contraseñas, cuentas bancarias ni todos los atributos del cliente.
 
-## 3. Rutas orientativas
+## Crear y editar una firma
 
-| Método | Ruta bajo `/api/sign/v1` | Propósito |
-| --- | --- | --- |
-| POST | `/auth/login` | Validar credenciales y emitir sesión Sign |
-| POST | `/auth/logout` | Revocar el token de la sesión actual |
-| GET | `/auth/me` | Consultar usuario y agencia actuales |
-| GET | `/compras` | Listado paginado de compras autorizadas |
-| GET | `/compras/{idcompra}` | Detalle autorizado de una compra |
-| POST | `/compras/{idcompra}/firma` | Recibir PNG y asociarlo a esa compra |
-| GET | `/compras/{idcompra}/firma` | Recuperar la imagen con autorización |
+Enviar `multipart/form-data` mediante POST:
 
-Filtros posibles del listado: fecha desde/hasta, texto de número de compra, firmada/pendiente y página. No se necesita `idagencia` elegible por el cliente. Orden estable sugerido: fecha descendente y `idcompra` descendente; tamaño de página acotado por el servidor.
+| Campo | Contenido |
+| --- | --- |
+| `firma` | Archivo PNG, máximo 2 MiB y 2048 × 1024 píxeles |
+| `operation_id` | UUID de la operación; conservarlo en cada reintento idéntico |
+| `compra_revision` | `revision` devuelta por el detalle consultado |
+| `base_version` | 0 para primera firma; versión actual para editar |
 
-Detalle y firma de otra agencia responderían como recurso no disponible (`404`). Autenticación inválida: `401`; cuenta/agencia/permiso no habilitado: `403`; conflictos de firma o compra modificada: `409`; datos inválidos: `422`; imagen demasiado grande: `413`.
+El servidor verifica la compra y su agencia, decodifica el PNG y genera una imagen normalizada con fondo blanco. Una edición crea **una versión nueva** y conserva archivos/metadatos anteriores.
 
-El contrato final fijará un formato JSON uniforme de datos, paginación y error con un código estable para KMP. Importe como decimal exacto y fechas con zona horaria explícita; no reutilizar directamente todas las columnas de ActiveRecord como respuesta.
+Respuesta: `data.firma` incluye ID, compra, versión, usuario que registró, revisión de compra, SHA-256, MIME, tamaño, dimensiones y fecha UTC. `data.replayed` indica que la misma operación ya había sido confirmada.
 
-## 4. Persistencia propuesta
+- Un reintento idéntico no genera otra versión.
+- Cambiar el contenido de una operación ya utilizada devuelve `409 operation_conflict`.
+- Editar desde una versión antigua devuelve `409 signature_changed`.
+- Firmar una revisión antigua de la compra devuelve `409 purchase_changed`.
+- Crear o editar en una compra anulada devuelve `409 purchase_not_active`.
+- La comprobación de versión está protegida por una transacción y bloqueo de la compra.
 
-### Tabla auxiliar de sesiones: `sign_api_token`
+Una compra modificada conserva su firma histórica y queda marcada en el detalle como modificada. No se bloquea ni cambia la edición de compras en la web. Las anuladas conservan las imágenes; no aparecen en el listado de vigentes ni admiten nuevas firmas. La política visual del comprobante cuando haya cambios se acordará junto con su ubicación.
 
-Campos orientativos: ID, `idusuario`, hash único del token, creación, expiración, último uso y revocación. FK al usuario con tipo compatible. Puede incluir el contexto de agencia para detectar cambios durante una sesión.
+## Imágenes y almacenamiento
 
-Esta tabla no requiere alterar `usuario`. Tiene que ser independiente de `rrhh_api_token` para que revocar una app no cierre la sesión de la otra.
+La API GET devuelve `image/png` con autorización por agencia y sin caché. El directorio interno y la ruta relativa no se envían al móvil.
 
-### Tabla auxiliar de firmas: `compra_firma`
+El almacenamiento puede configurarse fuera de la carpeta pública con `OROBEST_SIGN_STORAGE_PATH`. La ubicación predeterminada es `runtime/signatures`, protegida por un `.htaccess` de denegación generado por el servicio; el hosting Apache debe respetarlo. Los archivos se crean sin reutilizar nombres ni sobrescribir versiones previas.
 
-Campos orientativos:
+## Errores
 
-- ID de firma y `idcompra` con FK.
-- `idusuario` que registró la captura y agencia al registrar, para auditoría.
-- Ruta interna de la imagen generada por el servidor.
-- MIME, tamaño, dimensiones y hash SHA-256 del contenido.
-- Fecha de registro del servidor.
-- Identificador de operación para reconocer reintentos de la misma carga.
-- Referencia de versión/estado de la compra si se acuerda invalidar firmas al editarla.
+```json
+{ "success": false, "error": { "code": "purchase_not_found", "message": "Compra no encontrada en la agencia asignada." } }
+```
 
-Si se aprueba **una sola firma sin reemplazo**, usar unicidad por `idcompra`. Si se necesita historial, definir un modelo de versiones antes de crear la migración. No resolver un reemplazo sobrescribiendo silenciosamente el mismo archivo.
+Estados: `401` sesión/credenciales, `403` agencia, `404` recurso fuera de alcance o inexistente, `405` método incorrecto, `409` conflicto, `413` tamaño y `422` validación. Un error inesperado devuelve `500 server_error`, sin detalles SQL ni trazas al cliente.
 
-Estas tablas son propuestas de diseño; no se han escrito sentencias de creación ni ejecutado cambios de esquema.
+## Tablas nuevas
 
-## 5. Captura y envío de imagen
+- `sign_api_token`: token hasheado, usuario, creación, último uso, expiración y revocación.
+- `compra_firma`: versiones por compra, autor/agencia de captura, operación idempotente, revisión de compra, metadatos y ubicación interna del PNG.
 
-- Captura de trazos en el móvil y exportación a **PNG**.
-- Envío propuesto: `multipart/form-data` con un campo de archivo `firma` y un identificador estable de operación.
-- `idcompra` procede de la ruta. Usuario y agencia proceden del token, no del formulario móvil.
-- El servidor valida que la imagen sea un PNG decodificable, comprueba límites acordados y genera el nombre interno.
-- La compra debe seguir siendo elegible al confirmar la carga, incluso ante dos solicitudes simultáneas.
-- Un reintento idéntico devuelve el resultado previamente confirmado. Una operación reutilizada con otro contenido o una firma diferente donde no se permite reemplazo devuelve conflicto.
-- Confirmar en una misma operación el registro de metadatos y la disponibilidad del archivo, con limpieza en caso de fallo.
-
-Sugerencia inicial para acordar: máximo 2 MiB y hasta 2048 × 1024 píxeles, fondo blanco. El límite debe coordinarse con `upload_max_filesize`, `post_max_size` y el límite del servidor del hosting.
-
-Se propone almacenamiento privado fuera de la raíz pública y entrega mediante una ruta autenticada. La futura impresión web podrá leer la imagen en el servidor después de autorizar la compra; no necesita una URL pública permanente.
-
-## 6. Compras elegibles y efecto de cambios
-
-Propuesta inicial: listar compras vigentes (`estado = 1`) y permitir firmar únicamente compras vigentes sin firma. El usuario vería las compras de todas las cajas de su agencia, aunque las haya creado otro usuario.
-
-Por definir con el propietario:
-
-- ¿Fecha actual como filtro inicial o intervalo completo configurable?
-- ¿Basta el número de compra, fecha y total o se necesita el nombre del cliente y detalle?
-- ¿Se permite firmar compras antiguas o de cajas inactivas?
-- ¿Qué ocurre al modificar importes, detalle o cliente de una compra ya firmada?
-- ¿Una anulación conserva la firma como histórico? Se recomienda conservar la evidencia, aunque deje de ser válida como compra vigente.
-- ¿Está permitido reasignar cajas a otras agencias? Si ocurre, hay que acordar cómo conservar pertenencia y acceso históricos.
-
-## 7. Preparación de hosting
-
-Después de aprobar y desarrollar el módulo, el paquete de despliegue debe enumerar exactamente:
-
-- Archivos nuevos en `modules/sign`.
-- Nuevas migraciones, con su secuencia y comando de ejecución.
-- Registro del módulo y reglas nuevas de `config/web.php` mediante un cambio acotado.
-- Directorio de imágenes, configuración de ruta y permisos de escritura.
-- Configuración de límites de carga y verificación del paso de `Authorization` en el hosting.
-- Opcionalmente, cambios de lectura de firma en el comprobante web si se aprueban.
-- Pruebas de login, aislamiento entre agencias, compra anulada, reintento y carga PNG en el entorno desplegado.
-
-Hay entradas `index.php` y `web/index.php` en el proyecto local. Antes de fijar rutas de imágenes o reglas de servidor, confirmar cuál es la raíz pública usada realmente en el hosting y el prefijo del dominio. La ubicación privada debe seguir funcionando con esa raíz.
-
-No se requiere instalar KMP en el hosting: se despliegan únicamente los archivos PHP y las migraciones correspondientes. El móvil consume HTTPS.
-
-## 8. Preguntas antes de crear las APIs
-
-1. **Organización:** ¿apruebas módulo `sign` y prefijo `/api/sign/v1`? ¿Qué dominio y carpeta pública utiliza el hosting?
-2. **Acceso:** ¿qué usuarios podrán firmar? ¿Creamos el permiso RBAC `firmarCompras`? ¿Cuánto debe durar la sesión?
-3. **Visibilidad:** ¿todas las compras vigentes de la agencia, incluidas las creadas por otros usuarios? ¿Solo del día inicialmente?
-4. **Firma:** ¿una firma por compra, sin reemplazo, o se necesita reemplazo con historial? ¿PNG con fondo blanco y límites propuestos?
-5. **Integración web:** ¿la imagen debe aparecer también en `compra/print`? ¿Qué debe ocurrir si una compra firmada se edita o anula?
-6. **Base de datos:** ¿apruebas tablas auxiliares `sign_api_token` y `compra_firma`, conservando la estructura de `usuario`? Queda pendiente revisar las dos cuentas activas con nombre duplicado.
-
-Las respuestas determinarán el contrato definitivo, los DTO y repositorios KMP y el manifiesto de archivos para subir al hosting.
+Solo se añaden estas dos tablas, sus índices y FK. La migración aislada es `modules/sign/migrations/m261015_000038_create_sign_tables.php`. El esquema previo de `usuario`, `agencia`, `caja` y `compra` se comprobó antes/después de la ejecución local.

@@ -6,17 +6,20 @@ Repositorio: <https://github.com/Hitzui/orobest-sign>
 
 ## Estado actual
 
-Etapa de análisis y preparación técnica. La base incluye inyección de dependencias, soporte MVVM compartido, cliente HTTP multiplataforma, serialización y Composables UI con iconos Lucide.
+Base KMP preparada con DI, MVVM, cliente HTTP, serialización y Composables UI/Lucide. El backend Sign v1 está implementado y migrado **localmente**, con acceso por agencia, sesión persistente y edición versionada de firmas.
 
-La entrada `App` inicializa Koin y el tema de Composables UI, sin contenido de pantallas. El login, la selección de compras y la captura de firma se implementarán en las siguientes etapas. La API y sus migraciones están **pendientes de consulta y aprobación**; no hay una URL de servidor configurada ni peticiones automáticas.
+La entrada `App` inicializa Koin y el tema sin contenido de pantallas. KMP ya tiene repositorio de autenticación/restauración y almacenes de token nativos. Las pantallas, el cliente móvil de compras y la captura se implementarán en la siguiente etapa. No hay peticiones automáticas desde `App`.
+
+Dominio aprobado: `https://orobestni.com/`. El propietario subirá los archivos y sincronizará únicamente las dos tablas nuevas: [instrucciones de hosting](docs/DESPLIEGUE_HOSTING.md).
 
 ## Flujo previsto
 
 1. Iniciar sesión con un usuario existente de OroBest.
-2. El servidor valida sus credenciales, estado, permisos y agencia asignada.
+2. El servidor valida sus credenciales, estado y agencia asignada; acceden todos los usuarios activos, incluidos los de caja, sin un rol adicional.
 3. Consultar las compras de esa agencia y seleccionar una por `idcompra`.
 4. Capturar y confirmar la firma del cliente.
 5. Subir la imagen y recibir confirmación del vínculo con la compra.
+6. Editar la firma creando una nueva versión, conservando el historial.
 
 La agencia autorizada se determina en el servidor. El móvil no puede elegir otra agencia enviando un identificador distinto.
 
@@ -53,23 +56,29 @@ shared/src/
       di/                      Módulos de Koin
       network/                 Cliente HTTP y contrato de motor nativo
       presentation/            StateViewModel con StateFlow de solo lectura
+      session/                 Contrato de almacenamiento seguro del token
     feature/
-      auth/                    Alcance documentado del login
-      agency/                  Alcance documentado de agencia
+      auth/                    Dominio, DTO, cliente y repositorio de autenticación
+      agency/                  Modelo de agencia de la sesión
       purchases/               Alcance documentado de compras
       signature/               Alcance documentado de firma
-  androidMain/                 Motor OkHttp
-  iosMain/                     Motor Darwin
-  jvmMain/                     Motor CIO
-  commonTest/                  Pruebas compartidas de infraestructura HTTP
+  androidMain/                 OkHttp y almacenamiento cifrado con Keystore
+  iosMain/                     Darwin y almacenamiento en Keychain
+  jvmMain/                     CIO y sesión en memoria para desarrollo
+  commonTest/                  Pruebas compartidas de HTTP y restauración de sesión
   jvmTest/                     Prueba del grafo de dependencias
 docs/
   ARQUITECTURA.md              Reglas KMP, DI y MVVM
   ANALISIS_WEB.md              Tablas, relaciones y hallazgos verificados
-  PROPUESTA_API.md             Propuesta pendiente y preguntas de integración
+  PROPUESTA_API.md             Contrato aprobado e implementado de Sign v1
+  DESPLIEGUE_HOSTING.md        Archivos exactos y sincronización del esquema
+backend/
+  orobest/                    Archivos nuevos del módulo Yii2 y su configuración
+  tests/                      Integración PHP en una base local efímera
+  tools/                      Migración local aislada y verificación del esquema
 ```
 
-Cada funcionalidad incorporará `domain`, `data`, `presentation` y `di` conforme se aprueben los contratos. Actualmente las carpetas `feature` documentan responsabilidades; no contienen implementaciones de negocio ni pantallas.
+La organización por funcionalidad separa dominio, datos y presentación. Autenticación ya implementa dominio y datos; la presentación se incorporará al comenzar las pantallas. Compras y firma tienen su alcance móvil documentado y backend disponible.
 
 ## Relación con la web
 
@@ -85,6 +94,8 @@ compra.idcaja ──> caja.idcaja
 
 La tabla `usuario` puede conservar su estructura. Se detectaron dos cuentas activas con el mismo `username`, que requieren revisión de datos antes del login móvil. Consulta los detalles en [el análisis web](docs/ANALISIS_WEB.md).
 
+La migración local añadió únicamente `sign_api_token` y `compra_firma`; los esquemas de `usuario`, `agencia`, `caja` y `compra` se verificaron sin cambios. La sesión Sign dura 90 días de inactividad y se renueva con cada petición autenticada. La firma se integrará visualmente en el comprobante cuando se defina el lugar.
+
 ## Requisitos y comandos
 
 - Android Studio con soporte KMP y Android SDK 37; Android mínimo API 24.
@@ -99,18 +110,19 @@ En PowerShell desde la raíz:
 .\gradlew.bat :androidApp:assembleDebug
 .\gradlew.bat :desktopApp:run
 .\gradlew.bat :shared:jvmTest :shared:testAndroidHostTest
+C:\xampp\php\php.exe backend\tests\run.php C:\xampp\htdocs\orobest
 ```
 
 En macOS/Linux se usa `./gradlew`; para iOS abrir `iosApp/iosApp.xcodeproj`. Las comprobaciones Android/JVM no sustituyen una compilación iOS en macOS.
 
-Verificación inicial del 15 de octubre de 2026 en Windows: `:shared:jvmTest`, `:shared:testAndroidHostTest` y `:androidApp:assembleDebug` completados correctamente. iOS queda pendiente de verificación en macOS.
+Verificación del 15 de octubre de 2026 en Windows: tests JVM/Android y APK debug correctos; 36 comprobaciones PHP de integración correctas, incluyendo aislamiento de agencias, sesión, carga, edición, historial y reintentos. iOS/Keychain quedan pendientes de compilación y verificación en macOS. El almacenamiento Android requiere además validación en un dispositivo/emulador con Keystore.
 
-## Configuración futura
+## Configuración y sesión
 
-La dirección HTTPS y el prefijo de la API se incorporarán después de acordar la organización del backend y del hosting. Las credenciales web, conexiones de base de datos y tokens no pertenecen al código móvil ni al repositorio.
+`core/network/ApiConfig.kt` centraliza la dirección aprobada `https://orobestni.com/api/sign/v1/` y permite inyectar otra dirección HTTPS para pruebas. Las credenciales web, conexiones de base de datos y tokens reales no pertenecen al repositorio.
 
-El almacenamiento de sesión se decidirá con el login; si debe persistir entre ejecuciones, se implementará mediante almacenamiento seguro nativo. No se ha añadido persistencia de credenciales ni sincronización offline en esta etapa.
+Android cifra el token con AES-GCM y una clave de Keystore; iOS usa Keychain. No se guarda la contraseña. `AuthRepository.restoreSession()` restaura el perfil consultando el servidor y conserva el token ante fallos de red. JVM mantiene sesión solo en memoria para desarrollo. La cola offline de cargas todavía no está implementada.
 
-## Próxima decisión
+## Siguiente etapa
 
-Revisar [la propuesta API](docs/PROPUESTA_API.md): prefijo propio, permiso de firma, tablas auxiliares de tokens y firmas, compras elegibles, política de reemplazo e integración de la imagen en el comprobante web. Una vez acordado, se implementará primero el backend y su contrato, y luego los flujos MVVM del móvil.
+El propietario sincroniza las dos tablas y sube [los archivos indicados](docs/DESPLIEGUE_HOSTING.md). Después se verifica la API desplegada y se desarrollan los flujos MVVM del móvil. Queda por decidir la ubicación de la firma en el comprobante y su tratamiento visual si una compra firmada fue modificada.

@@ -17,7 +17,7 @@ internal fun createWireJson(): Json = Json {
 internal fun createHttpClient(engine: HttpClientEngine, wireJson: Json): HttpClient =
     HttpClient(engine) {
         expectSuccess = true
-        // La autenticación y la URL se definirán al aprobar el contrato de la API.
+        // Las fuentes remotas usan ApiConfig y envían el Bearer explícitamente.
         followRedirects = false
         install(ContentNegotiation) {
             json(wireJson)

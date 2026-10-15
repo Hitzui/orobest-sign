@@ -50,7 +50,7 @@ Dependencias: `presentation → domain ← data`. `domain` no importa Ktor, Koin
 - La cancelación de coroutines debe propagarse. No capturar `CancellationException` como error de negocio.
 - La vista dibuja y envía acciones; no consulta HTTP ni decide la agencia autorizada.
 
-No se han creado ViewModels de login/compras/firma porque dependen de contratos todavía pendientes.
+El contrato de API ya está aprobado y el repositorio de autenticación implementado. Los ViewModels y pantallas de login/compras/firma se incorporarán en la siguiente etapa de UI.
 
 ## Red
 
@@ -63,7 +63,7 @@ El cliente compartido ya dispone de:
 - Redirecciones desactivadas; las futuras rutas de API deberán responder directamente.
 - Motores OkHttp / Darwin / CIO seleccionados mediante `expect` / `actual`.
 
-No hay URL, Bearer, DTO de compra, endpoint de login ni repositorio remoto configurados. Se incorporarán al aprobar `docs/PROPUESTA_API.md`.
+`ApiConfig.Production` configura el dominio aprobado `https://orobestni.com/api/sign/v1/`. `AuthApi` usa JSON y Bearer para login, perfil y logout; `DefaultAuthRepository` implementa restauración y cierre de sesión. No se hacen peticiones automáticas desde `App`. El cliente de compras/cargas y sus pantallas se incorporarán en la siguiente etapa.
 
 ## UI e iconos
 
@@ -79,12 +79,18 @@ La pertenencia de una compra se validará en el servidor mediante su caja y la a
 
 Los importes de `compra` son `DECIMAL(12,3)`; al acordar los DTO se conservarán como texto decimal o representación exacta. Las fechas de la web son `datetime` en contexto `America/Managua`; el contrato debe definir explícitamente zona y formato antes de convertirlas a instantes en KMP.
 
-La persistencia de tokens, el trabajo offline y los reintentos de imágenes son decisiones futuras. Un reintento de carga debe poder resolverse sin generar firmas duplicadas; esta regla pertenece también al backend.
+`SessionStore` tiene implementaciones nativas: Android cifra con AES-GCM usando una clave no exportable de Android Keystore; iOS guarda en Keychain con `WhenUnlockedThisDeviceOnly`. JVM solo mantiene el token en memoria para desarrollo. El servidor conserva únicamente el hash y renueva la sesión hasta 90 días desde el último uso. La contraseña no se persiste.
+
+El repositorio serializa operaciones de sesión con Mutex y expone el perfil como StateFlow. Al restaurar consulta `auth/me`: errores de red conservan el token, `401` lo elimina y `403` conserva la credencial pero no publica un perfil autorizado. El logout elimina el token local incluso si falla la petición de revocación; en ese caso el servidor lo conserva hasta revocación o vencimiento.
+
+El backend admite ediciones versionadas de firma y reintentos idempotentes. El trabajo offline/cola de carga móvil aún no está implementado.
 
 ## Comprobaciones
 
 - Las pruebas de `HttpClientFactoryTest` usan MockEngine y no contactan con OroBest.
 - Verifican lectura JSON compatible y rechazo de una respuesta `401`.
 - `AppModulesTest` comprueba que Koin puede resolver el cliente real JVM y el serializador compartido.
+- `AuthRepositoryTest` comprueba restauración desde un repositorio recreado, conservación de sesión sin conexión y eliminación ante `401`.
+- `backend/tests/run.php` verifica reglas de agencia, sesiones, firmas versionadas y conflictos en una base local efímera.
 - Ejecutar los tests Android/JVM y `assembleDebug` al modificar la infraestructura compartida.
 - Validar el framework y los tests iOS en macOS cuando ese entorno esté disponible.

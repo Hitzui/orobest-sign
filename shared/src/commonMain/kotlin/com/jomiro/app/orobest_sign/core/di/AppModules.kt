@@ -3,10 +3,15 @@ package com.jomiro.app.orobest_sign.core.di
 import com.jomiro.app.orobest_sign.core.network.createHttpClient
 import com.jomiro.app.orobest_sign.core.network.createPlatformHttpClientEngine
 import com.jomiro.app.orobest_sign.core.network.createWireJson
+import com.jomiro.app.orobest_sign.core.network.ApiConfig
+import com.jomiro.app.orobest_sign.feature.auth.data.remote.AuthApi
+import com.jomiro.app.orobest_sign.feature.auth.data.repository.DefaultAuthRepository
+import com.jomiro.app.orobest_sign.feature.auth.domain.repository.AuthRepository
 import org.koin.dsl.module
 import org.koin.dsl.onClose
 
 private val networkModule = module {
+    single { ApiConfig.Production }
     single { createWireJson() }
     single { createPlatformHttpClientEngine() } onClose { engine ->
         engine?.close()
@@ -16,4 +21,9 @@ private val networkModule = module {
     }
 }
 
-val appModules = listOf(networkModule)
+private val authModule = module {
+    single { AuthApi(get(), get()) }
+    single<AuthRepository> { DefaultAuthRepository(get(), get()) }
+}
+
+val appModules = listOf(networkModule, platformModule, authModule)

@@ -2,6 +2,8 @@
 
 Fecha de revisión: **15 de octubre de 2026**.
 
+> Este documento conserva el análisis inicial, anterior a las migraciones de Sign. Posteriormente se aprobó e implementó el módulo, con acceso para todos los usuarios activos y dos tablas auxiliares. El estado vigente está en [PROPUESTA_API.md](PROPUESTA_API.md) y [DESPLIEGUE_HOSTING.md](DESPLIEGUE_HOSTING.md).
+
 Fuente: proyecto local `C:\xampp\htdocs\orobest` y la base de datos indicada por su configuración local. Se consultaron metadatos y agregados en una transacción de solo lectura. Los resultados describen esa base local, no certifican el estado del hosting.
 
 ## 1. Plataforma y alcance
