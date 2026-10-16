@@ -132,7 +132,8 @@ class CompraController extends Controller
         }
         $agencia = Agencia::findOne($usuario->idagencia);
         $firmaDataUri = null;
-        $signModule = Yii::$app->getModule('sign', false);
+        // La impresión no pasa por una ruta del módulo Sign, así que puede seguir descargado.
+        $signModule = Yii::$app->getModule('sign');
         if ($signModule instanceof SignModule) {
             $firmaPath = (new FirmaService($signModule))->latestImageForPrint((int) $compra->idcompra);
             if ($firmaPath !== null) {

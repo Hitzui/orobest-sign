@@ -93,7 +93,9 @@ try {
             'idcaja' => $cashbox, 'estado' => $state, 'idusuario' => $creator, 'total' => '123.456', 'updated_at' => '2026-10-15 08:00:00',
         ])->execute();
     }
+    check($app->getModule('sign', false) === null, 'módulo Sign todavía no está cargado al imprimir otras rutas');
     $module = $app->getModule('sign');
+    check($module instanceof app\modules\sign\Module, 'obtener el módulo lo carga desde la configuración');
     $auth = new app\modules\sign\services\AuthService($module);
     $session = $auth->login(['username' => 'cashier', 'password' => 'synthetic-password']);
     [$user, $token] = $auth->authenticate($session['access_token']);
