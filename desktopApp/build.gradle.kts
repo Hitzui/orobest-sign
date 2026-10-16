@@ -23,6 +23,15 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "com.jomiro.app.orobest_sign"
             packageVersion = "1.0.0"
+            windows {
+                iconFile.set(project.file("src/main/resources/orobest-sign.ico"))
+            }
+            macOS {
+                iconFile.set(project.file("src/main/resources/orobest-sign.icns"))
+            }
+            linux {
+                iconFile.set(project.file("src/main/resources/orobest-sign.png"))
+            }
         }
     }
 }

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 128 128" role="img" aria-labelledby="title description">
+  <title id="title">OroBest Sign</title>
+  <desc id="description">Documento blanco con firma y pluma sobre azul de marca.</desc>
+  <rect id="background" width="128" height="128" fill="#415D8A"/>
+  <path d="M35 23 H73 L92 42 V92 Q92 101 83 101 H35 Q26 101 26 92 V32 Q26 23 35 23 Z" fill="#FFFFFF"/>
+  <path d="M73 23 V35 Q73 42 80 42 H92 Z" fill="#D0E1F5"/>
+  <path d="M39 43 H59 M39 54 H66" fill="none" stroke="#ABBCDA" stroke-width="4" stroke-linecap="round"/>
+  <path d="M38 82 C47 65 59 72 49 82 C41 90 58 88 64 79 C69 72 75 78 70 83 C75 86 80 79 84 81" fill="none" stroke="#415D8A" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M71 69 L91 49 Q94 46 97 49 L101 53 Q104 56 101 59 L81 79 L67 83 Z" fill="#415D8A" stroke="#FFFFFF" stroke-width="3.5" stroke-linejoin="round"/>
+  <path d="M71 69 L81 79 L67 83 Z" fill="#D0E1F5"/>
+  <path d="M89 51 L99 61" fill="none" stroke="#ABBCDA" stroke-width="3"/>
+</svg>

@@ -14,6 +14,8 @@ Dominio aprobado: `https://orobestni.com/`. El propietario subirá los archivos 
 
 Paleta visual aprobada e integrada en el tema compartido: **`#ABBCDA` · `#FFFFFF` · `#415D8A` · `#D0E1F5`**. Ver [colores y usos](docs/PALETA.md).
 
+Icono propio de **documento, firma y pluma**, integrado en Android, iOS y escritorio. Fuentes SVG editables, variantes y regeneración en [ICONO.md](docs/ICONO.md).
+
 ## Flujo previsto
 
 1. Iniciar sesión con un usuario existente de OroBest.
