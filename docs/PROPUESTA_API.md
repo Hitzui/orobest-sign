@@ -14,7 +14,7 @@ Los tokens Sign son independientes de RRHH, se guardan mediante SHA-256 y duran 
 
 Cada petición vuelve a consultar usuario y agencia actuales. Un cambio de agencia surte efecto en la siguiente petición; `/auth/me` permite al móvil actualizar el contexto. Un usuario desactivado, un token revocado o vencido reciben `401`; agencia no disponible, `403`.
 
-KMP dispone de repositorio de autenticación y restauración de sesión. Android almacena el token cifrado AES-GCM con clave Android Keystore; iOS usa Keychain, solo en el mismo dispositivo. No se guarda la contraseña. JVM conserva la sesión en memoria por ser un destino auxiliar de desarrollo. Una falta de conexión al restaurar no elimina el token; un `401` confirmado sí. El uso desde pantallas queda para la siguiente etapa.
+KMP dispone de repositorio de autenticación y restauración de sesión, conectado al login en `screen/login`. Android almacena el token cifrado AES-GCM con clave Android Keystore; iOS usa Keychain, solo en el mismo dispositivo. No se guarda la contraseña. JVM conserva la sesión en memoria por ser un destino auxiliar de desarrollo. Una falta de conexión al restaurar no elimina el token; un `401` confirmado sí. El login restaura al abrir la app, permite reintentar y ofrece cierre de sesión.
 
 ## Rutas
 

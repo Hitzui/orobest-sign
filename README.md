@@ -8,7 +8,7 @@ Repositorio: <https://github.com/Hitzui/orobest-sign>
 
 Base KMP preparada con DI, MVVM, cliente HTTP, serialización y Composables UI/Lucide. El backend Sign v1 está implementado y migrado **localmente**, con acceso por agencia, sesión persistente y edición versionada de firmas.
 
-La entrada `App` inicializa Koin y el tema sin contenido de pantallas. KMP ya tiene repositorio de autenticación/restauración y almacenes de token nativos. Las pantallas, el cliente móvil de compras y la captura se implementarán en la siguiente etapa. No hay peticiones automáticas desde `App`.
+La entrada `App` inicializa Koin, el tema y el **login con sesión persistente**. Al abrir la app se restaura la sesión guardada consultando el servidor; si no hay sesión válida se muestra el formulario. El login incluye validación, contraseña oculta/visible, estados de carga, reintento sin perder el token y cierre de sesión. Después del acceso se muestra el usuario y su agencia. El cliente móvil de compras y la captura se implementarán en la siguiente etapa.
 
 Dominio aprobado: `https://orobestni.com/`. El propietario subirá los archivos y sincronizará únicamente las dos tablas nuevas: [instrucciones de hosting](docs/DESPLIEGUE_HOSTING.md).
 
@@ -65,6 +65,12 @@ shared/src/
       agency/                  Modelo de agencia de la sesión
       purchases/               Alcance documentado de compras
       signature/               Alcance documentado de firma
+    screen/login/
+      LoginRoute.kt            Conexión de Compose con ViewModel y estado de campos
+      LoginScreen.kt           Formulario y estados de sesión con Composables UI
+      uistate/LoginUiState.kt   Estado inmutable, separado de la vista
+      viewmodel/               LoginViewModel con StateFlow y restauración
+      di/                      Registro del ViewModel con Koin
   androidMain/                 OkHttp y almacenamiento cifrado con Keystore
   iosMain/                     Darwin y almacenamiento en Keychain
   jvmMain/                     CIO y sesión en memoria para desarrollo
@@ -81,7 +87,7 @@ backend/
   tools/                      Migración local aislada y verificación del esquema
 ```
 
-La organización por funcionalidad separa dominio, datos y presentación. Autenticación ya implementa dominio y datos; la presentación se incorporará al comenzar las pantallas. Compras y firma tienen su alcance móvil documentado y backend disponible.
+La organización por funcionalidad separa dominio y datos de autenticación en `feature/auth`, con su presentación en `screen/login`. Compras y firma tienen su alcance móvil documentado y backend disponible.
 
 ## Relación con la web
 
@@ -126,6 +132,8 @@ Verificación del 15 de octubre de 2026 en Windows: tests JVM/Android y APK debu
 
 Android cifra el token con AES-GCM y una clave de Keystore; iOS usa Keychain. No se guarda la contraseña. `AuthRepository.restoreSession()` restaura el perfil consultando el servidor y conserva el token ante fallos de red. JVM mantiene sesión solo en memoria para desarrollo. La cola offline de cargas todavía no está implementada.
 
+El login obtiene su ViewModel por Koin y observa `LoginUiState` con Lifecycle. Un fallo de conexión al restaurar ofrece **Reintentar** o **Usar otra cuenta**; solo se publica una sesión activa después de verificarla con el servidor. La contraseña vive únicamente en memoria del formulario, sin `rememberSaveable`, y se limpia al autenticar. El cierre de sesión elimina el token local incluso si no hay conexión para revocarlo en el servidor.
+
 ## Siguiente etapa
 
-El propietario sincroniza las dos tablas y sube [los archivos indicados](docs/DESPLIEGUE_HOSTING.md). Después se verifica la API desplegada y se desarrollan los flujos MVVM del móvil. Queda por decidir la ubicación de la firma en el comprobante y su tratamiento visual si una compra firmada fue modificada.
+Verificar la API desplegada y probar el login/persistencia en dispositivo. La siguiente etapa móvil comprende compras por agencia y captura/edición de firma. Queda por decidir la ubicación de la firma en el comprobante y su tratamiento visual si una compra firmada fue modificada. Las instrucciones del backend están en [DESPLIEGUE_HOSTING.md](docs/DESPLIEGUE_HOSTING.md).

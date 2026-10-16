@@ -18,11 +18,14 @@ feature/<funcionalidad>/
     remote/       Fuentes HTTP y DTO con Kotlinx Serialization
     mapper/       Conversión de DTO a dominio
     repository/   Implementaciones de repositorios
-  presentation/
-    ...ViewModel.kt
-    ...UiState.kt
-    ...Screen.kt
   di/             Registro del repositorio, casos de uso y ViewModel
+
+screen/login/
+  LoginRoute.kt                 Obtención del ViewModel y estado local de los campos
+  LoginScreen.kt                Vista sin acceso directo a HTTP/repositorios
+  uistate/LoginUiState.kt        Estado inmutable de presentación
+  viewmodel/LoginViewModel.kt    Acciones y coordinación de sesión
+  di/LoginModule.kt              Registro del ViewModel
 ```
 
 Estas subcapas se crearán con código real al implementar cada funcionalidad. Evitar repositorios ficticios, DTO anticipados y casos de uso que solo reenvían llamadas sin aportar una regla.
@@ -34,9 +37,9 @@ Dependencias: `presentation → domain ← data`. `domain` no importa Ktor, Koin
 - Koin inicia en `App` mediante `KoinApplication`, ligado al ciclo de vida de la composición.
 - `core/di/AppModules.kt` registra JSON, motor HTTP y cliente como singletons.
 - Tanto el cliente como el motor se liberan al cerrar el contenedor.
-- Los módulos de funcionalidad se incorporarán a `appModules` cuando existan sus implementaciones.
+- `appModules` incluye autenticación y `loginModule` para resolver el ViewModel por constructor.
 - Repositorios y ViewModels reciben dependencias por constructor. El contenedor no se consulta dentro del dominio.
-- Los ViewModels se registrarán con el DSL `viewModel` de Koin y se obtendrán en Compose mediante `koinViewModel`, conservando el alcance de Lifecycle.
+- `LoginViewModel` se registra con `viewModelOf` de Koin y se obtiene en Compose mediante `koinViewModel`, conservando el alcance de Lifecycle.
 
 ## MVVM
 
@@ -50,7 +53,7 @@ Dependencias: `presentation → domain ← data`. `domain` no importa Ktor, Koin
 - La cancelación de coroutines debe propagarse. No capturar `CancellationException` como error de negocio.
 - La vista dibuja y envía acciones; no consulta HTTP ni decide la agencia autorizada.
 
-El contrato de API ya está aprobado y el repositorio de autenticación implementado. Los ViewModels y pantallas de login/compras/firma se incorporarán en la siguiente etapa de UI.
+El login está implementado en `screen/login` con `LoginUiState` separado, `LoginViewModel` y vista. Coordina restauración inicial, acceso, validación, reintento y cierre de sesión. Las pantallas de compras/firma corresponden a la siguiente etapa.
 
 ## Red
 
@@ -63,13 +66,13 @@ El cliente compartido ya dispone de:
 - Redirecciones desactivadas; las futuras rutas de API deberán responder directamente.
 - Motores OkHttp / Darwin / CIO seleccionados mediante `expect` / `actual`.
 
-`ApiConfig.Production` configura el dominio aprobado `https://orobestni.com/api/sign/v1/`. `AuthApi` usa JSON y Bearer para login, perfil y logout; `DefaultAuthRepository` implementa restauración y cierre de sesión. No se hacen peticiones automáticas desde `App`. El cliente de compras/cargas y sus pantallas se incorporarán en la siguiente etapa.
+`ApiConfig.Production` configura el dominio aprobado `https://orobestni.com/api/sign/v1/`. `AuthApi` usa JSON y Bearer para login, perfil y logout; `DefaultAuthRepository` implementa restauración y cierre de sesión. Al crear `LoginViewModel` se restaura la sesión: solo se consulta `auth/me` si existe un token local. El cliente de compras/cargas y sus pantallas se incorporarán en la siguiente etapa.
 
 ## UI e iconos
 
 `App` utiliza `OroBestTheme`, que aplica la paleta aprobada sobre `ComposablesTheme` de `com.composables:ui:0.2.0`. Los colores y sus usos están documentados en [PALETA.md](PALETA.md) y centralizados en `core/designsystem/theme`. Está disponible `com.composables:icons-lucide:1.0.0`; sus vectores se usarán con el componente `Icon` de Composables UI.
 
-El contenedor raíz permanece sin contenido de pantallas. La captura de firma necesitará una superficie de trazos y un exportador PNG; su implementación y las adaptaciones nativas se decidirán al desarrollar esa funcionalidad.
+El contenedor raíz muestra `LoginRoute`. El formulario usa Composables UI e iconos Lucide; la contraseña usa `BasicSecureTextField` de Foundation con tokens del tema. Los campos viven en la ruta, la contraseña solo en memoria, sin guardarse en el estado del sistema operativo. El acceso exitoso muestra usuario/agencia y permite cerrar sesión. La captura de firma necesitará una superficie de trazos y un exportador PNG; su implementación y las adaptaciones nativas se decidirán al desarrollar esa funcionalidad.
 
 ## Datos y sesión
 
@@ -91,6 +94,7 @@ El backend admite ediciones versionadas de firma y reintentos idempotentes. El t
 - Verifican lectura JSON compatible y rechazo de una respuesta `401`.
 - `AppModulesTest` comprueba que Koin puede resolver el cliente real JVM y el serializador compartido.
 - `AuthRepositoryTest` comprueba restauración desde un repositorio recreado, conservación de sesión sin conexión y eliminación ante `401`.
+- `LoginSessionTest` verifica el flujo ViewModel/repositorio con HTTP simulado: restauración al recrear la presentación, agencia actual del servidor, recuperación tras fallo de red, sesión vencida, validación, bloqueo de envíos duplicados y logout sin conexión.
 - `backend/tests/run.php` verifica reglas de agencia, sesiones, firmas versionadas y conflictos en una base local efímera.
 - Ejecutar los tests Android/JVM y `assembleDebug` al modificar la infraestructura compartida.
 - Validar el framework y los tests iOS en macOS cuando ese entorno esté disponible.

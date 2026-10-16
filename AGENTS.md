@@ -8,7 +8,7 @@ Leer `README.md`, `docs/ARQUITECTURA.md`, `docs/ANALISIS_WEB.md` y `docs/PROPUES
 
 ## Acuerdos actuales
 
-- La etapa actual implementa el backend aprobado y la sesión compartida. Las pantallas móviles todavía no están autorizadas en esta etapa.
+- El usuario autorizó implementar el login móvil con sesión persistente. Su presentación va en `screen/login`, con UiState separado y ViewModel por DI; las pantallas de compras/firma quedan para su siguiente etapa.
 - El usuario aprobó el módulo `sign`, `/api/sign/v1` y dos tablas nuevas: `sign_api_token` y `compra_firma`. No alterar tablas existentes. Consultar cambios de alcance adicionales.
 - Acceso para todos los usuarios activos con agencia activa, incluidos los de caja, sin permiso RBAC adicional. Compras por agencia, no por caja ni creador. Sesión persistente y firma editable con versiones.
 - Dominio aprobado: `https://orobestni.com/`. El usuario sube los archivos y sincroniza el esquema del hosting después de las migraciones locales. No conectarse a la base de producción.
