@@ -25,6 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,10 +43,15 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DatePickerDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import com.composables.icons.lucide.Building2
 import com.composables.icons.lucide.CalendarDays
 import com.composables.icons.lucide.Check
@@ -228,6 +234,8 @@ private fun PurchaseFiltersPanel(
     appliedFilters: PurchaseFilters, error: String?,
 ) {
     var showDates by rememberSaveable { mutableStateOf(false) }
+    var activeDateFieldName by rememberSaveable { mutableStateOf<String?>(null) }
+    val activeDateField = DateField.entries.firstOrNull { it.name == activeDateFieldName }
     val focus = LocalFocusManager.current
     val apply = { focus.clearFocus(); onApply() }
     Column(
@@ -265,10 +273,12 @@ private fun PurchaseFiltersPanel(
         }
         if (showDates) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                DateFilterField("Desde", from, enabled, Modifier.weight(1f))
-                DateFilterField("Hasta", until, enabled, Modifier.weight(1f))
+                DateFilterField("Desde", from.text.toString(), enabled, Modifier.weight(1f),
+                    onSelect = { activeDateFieldName = DateField.From.name })
+                DateFilterField("Hasta", until.text.toString(), enabled, Modifier.weight(1f),
+                    onSelect = { activeDateFieldName = DateField.Until.name })
             }
-            Text("Formato AAAA-MM-DD · Días incluidos", fontSize = 12.sp)
+            Text("Toca una fecha para abrir el calendario · Días incluidos", fontSize = 12.sp)
             Button(onClick = apply, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), style = ButtonStyle.Primary) { Text("Aplicar fechas", fontSize = 14.sp) }
         } else if (appliedFilters.from.isNotBlank() || appliedFilters.until.isNotBlank()) {
             Text("Fechas: ${appliedFilters.from.ifBlank { "Sin inicio" }} → ${appliedFilters.until.ifBlank { "Sin límite" }}", fontSize = 12.sp)
@@ -278,15 +288,72 @@ private fun PurchaseFiltersPanel(
         }
         error?.let { MessagePanel(it) }
     }
+
+    activeDateField?.let { field ->
+        val selectedText = if (field == DateField.From) from.text.toString() else until.text.toString()
+        DateSelectionDialog(
+            field = field,
+            initialDateMillis = selectedText.takeIf { it.isNotBlank() }?.let(::dateToUtcMillis),
+            onDismiss = { activeDateFieldName = null },
+            onClear = {
+                val target = if (field == DateField.From) from else until
+                target.setTextAndPlaceCursorAtEnd("")
+                activeDateFieldName = null
+            },
+            onSelect = { millis ->
+                val target = if (field == DateField.From) from else until
+                target.setTextAndPlaceCursorAtEnd(utcMillisToDate(millis))
+                activeDateFieldName = null
+            },
+        )
+    }
+}
+
+private enum class DateField(val label: String) { From("Desde"), Until("Hasta") }
+
+@Composable
+private fun DateFilterField(label: String, value: String, enabled: Boolean, modifier: Modifier, onSelect: () -> Unit) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Button(onClick = onSelect, enabled = enabled, style = ButtonStyle.Outlined,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = "Elegir fecha $label" }) {
+            Icon(Lucide.CalendarDays, Modifier.size(18.dp))
+            Text(value.takeIf { it.isNotBlank() }?.let(::formatDateForPicker) ?: "Seleccionar", fontSize = 13.sp, maxLines = 1)
+        }
+    }
 }
 
 @Composable
-private fun DateFilterField(label: String, state: TextFieldState, enabled: Boolean, modifier: Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-        TextField(state = state, enabled = enabled, modifier = Modifier.fillMaxWidth(), accessibilityLabel = "Fecha $label",
-            placeholder = { Text("AAAA-MM-DD", fontSize = 13.sp) }, borderColor = Theme[colors][borderColor],
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false))
+@OptIn(ExperimentalMaterial3Api::class)
+private fun DateSelectionDialog(field: DateField, initialDateMillis: Long?, onDismiss: () -> Unit, onClear: () -> Unit, onSelect: (Long) -> Unit) {
+    val pickerState = rememberDatePickerState(initialSelectedDateMillis = initialDateMillis)
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = { pickerState.selectedDateMillis?.let(onSelect) }, enabled = pickerState.selectedDateMillis != null) {
+                androidx.compose.material3.Text("Elegir")
+            }
+        },
+        dismissButton = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (initialDateMillis != null) {
+                    TextButton(onClick = onClear) { androidx.compose.material3.Text("Quitar") }
+                }
+                TextButton(onClick = onDismiss) { androidx.compose.material3.Text("Cancelar") }
+            }
+        },
+        colors = DatePickerDefaults.colors(
+            containerColor = Theme[colors][panelColor],
+            selectedDayContainerColor = Theme[colors][primaryColor],
+            todayDateBorderColor = Theme[colors][primaryColor],
+        ),
+    ) {
+        DatePicker(
+            state = pickerState,
+            showModeToggle = false,
+            title = { androidx.compose.material3.Text("Fecha ${field.label}") },
+            headline = { androidx.compose.material3.Text("Selecciona la fecha") },
+        )
     }
 }
 

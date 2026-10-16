@@ -155,7 +155,7 @@ El login obtiene su ViewModel por Koin y observa `LoginUiState` con Lifecycle. U
 - Consulta las compras vigentes de **todas las cajas de la agencia**, con 20 compras por página, ordenadas por fecha descendente por el servidor.
 - Busca por número de compra con el botón de búsqueda o la tecla buscar del teclado.
 - **Todas / Pendientes / Firmadas** aplica el estado de firma y los campos actuales.
-- **Rango de fechas** permite indicar desde/hasta en `AAAA-MM-DD`, con días incluidos. Las fechas se validan antes de consultar; por defecto se incluye todo el historial vigente.
+- **Rango de fechas** permite escoger inicio y fin con un calendario, con días incluidos. Las fechas seleccionadas se envían a la API en `AAAA-MM-DD`; por defecto se incluye todo el historial vigente.
 - **Limpiar** elimina los filtros y vuelve a la primera página. **Actualizar** repite la consulta aplicada.
 - Los importes conservan los decimales exactos de la API, sin conversión a `Double` ni moneda asumida. Las fechas se muestran en el calendario de la agencia.
 - Ante `401`/`403` se vuelve a verificar la sesión. Las compras se liberan al salir del alcance autenticado; los errores de red permiten reintentar.
