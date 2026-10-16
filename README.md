@@ -12,6 +12,8 @@ La entrada `App` inicializa Koin y el tema sin contenido de pantallas. KMP ya ti
 
 Dominio aprobado: `https://orobestni.com/`. El propietario subirá los archivos y sincronizará únicamente las dos tablas nuevas: [instrucciones de hosting](docs/DESPLIEGUE_HOSTING.md).
 
+Paleta visual aprobada e integrada en el tema compartido: **`#ABBCDA` · `#FFFFFF` · `#415D8A` · `#D0E1F5`**. Ver [colores y usos](docs/PALETA.md).
+
 ## Flujo previsto
 
 1. Iniciar sesión con un usuario existente de OroBest.
@@ -51,9 +53,10 @@ iosApp/                        Entrada SwiftUI / proyecto Xcode
 desktopApp/                    Entrada JVM para desarrollo
 shared/src/
   commonMain/kotlin/com/jomiro/app/orobest_sign/
-    App.kt                     Raíz de composición: Koin + ComposablesTheme
+    App.kt                     Raíz de composición: Koin + OroBestTheme
     core/
       di/                      Módulos de Koin
+      designsystem/theme/      Paleta y tema de Composables UI
       network/                 Cliente HTTP y contrato de motor nativo
       presentation/            StateViewModel con StateFlow de solo lectura
       session/                 Contrato de almacenamiento seguro del token

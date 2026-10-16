@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="256" viewBox="0 0 880 256" role="img" aria-labelledby="title description">
+  <title id="title">Paleta de OroBest Sign</title>
+  <desc id="description">Azul suave ABBCDA, blanco FFFFFF, azul principal 415D8A y azul claro D0E1F5.</desc>
+  <rect width="880" height="256" rx="16" fill="#FFFFFF"/>
+  <g stroke="#ABBCDA" stroke-width="1">
+    <rect x="16" y="16" width="212" height="160" rx="8" fill="#ABBCDA"/>
+    <rect x="228" y="16" width="212" height="160" rx="8" fill="#FFFFFF"/>
+    <rect x="440" y="16" width="212" height="160" rx="8" fill="#415D8A"/>
+    <rect x="652" y="16" width="212" height="160" rx="8" fill="#D0E1F5"/>
+  </g>
+  <g fill="#415D8A" text-anchor="middle" font-family="Arial, sans-serif">
+    <g font-size="18" font-weight="700">
+      <text x="122" y="208">#ABBCDA</text>
+      <text x="334" y="208">#FFFFFF</text>
+      <text x="546" y="208">#415D8A</text>
+      <text x="758" y="208">#D0E1F5</text>
+    </g>
+    <g font-size="14">
+      <text x="122" y="234">Azul suave</text>
+      <text x="334" y="234">Blanco</text>
+      <text x="546" y="234">Azul principal</text>
+      <text x="758" y="234">Azul claro</text>
+    </g>
+  </g>
+</svg>

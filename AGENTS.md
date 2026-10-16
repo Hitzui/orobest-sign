@@ -22,6 +22,7 @@ Leer `README.md`, `docs/ARQUITECTURA.md`, `docs/ANALISIS_WEB.md` y `docs/PROPUES
 - Usar Koin para inyección por constructor y Lifecycle ViewModel + StateFlow para MVVM compartido.
 - Organizar por funcionalidad y capas siguiendo `docs/ARQUITECTURA.md`.
 - Usar Composables UI y sus iconos Lucide; las dependencias están en el catálogo Gradle.
+- Paleta aprobada: #ABBCDA, #FFFFFF, #415D8A y #D0E1F5. Usar `OroBestTheme` y tokens semánticos; ver `docs/PALETA.md`.
 - HTTP con Ktor y Kotlinx Serialization; motores nativos en sus source sets.
 - Versiones y coordenadas centralizadas en `gradle/libs.versions.toml`.
 - La dirección aprobada se centraliza en `ApiConfig.Production`; no dispersar URLs ni incluir credenciales reales en código/documentos.

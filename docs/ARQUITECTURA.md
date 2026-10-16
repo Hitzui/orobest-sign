@@ -67,7 +67,7 @@ El cliente compartido ya dispone de:
 
 ## UI e iconos
 
-`App` ya utiliza `ComposablesTheme` de `com.composables:ui:0.2.0`. Está disponible `com.composables:icons-lucide:1.0.0`; sus vectores se usarán con el componente `Icon` de Composables UI.
+`App` utiliza `OroBestTheme`, que aplica la paleta aprobada sobre `ComposablesTheme` de `com.composables:ui:0.2.0`. Los colores y sus usos están documentados en [PALETA.md](PALETA.md) y centralizados en `core/designsystem/theme`. Está disponible `com.composables:icons-lucide:1.0.0`; sus vectores se usarán con el componente `Icon` de Composables UI.
 
 El contenedor raíz permanece sin contenido de pantallas. La captura de firma necesitará una superficie de trazos y un exportador PNG; su implementación y las adaptaciones nativas se decidirán al desarrollar esa funcionalidad.
 
