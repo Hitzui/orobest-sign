@@ -2,6 +2,7 @@ package com.jomiro.app.orobest_sign.screen.purchases
 
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -17,6 +18,7 @@ import com.jomiro.app.orobest_sign.feature.auth.domain.model.SessionProfile
 import com.jomiro.app.orobest_sign.feature.purchases.domain.model.PurchaseFilters
 import com.jomiro.app.orobest_sign.feature.purchases.domain.model.SignatureFilter
 import com.jomiro.app.orobest_sign.screen.purchases.viewmodel.PurchasesViewModel
+import com.jomiro.app.orobest_sign.screen.signature.SignatureRoute
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -37,12 +39,22 @@ fun PurchasesRoute(
     val until = rememberTextFieldState()
     var signatureName by rememberSaveable { mutableStateOf(SignatureFilter.All.name) }
     val signature = SignatureFilter.valueOf(signatureName)
+    val listState = rememberLazyListState()
+    LaunchedEffect(state.page, state.filters) { listState.scrollToItem(0) }
 
     LaunchedEffect(state.requiresSessionCheck) {
         if (state.requiresSessionCheck) onSessionCheck()
     }
 
-    PurchasesScreen(
+    val selected = state.selectedPurchase
+    if (selected != null) {
+        SignatureRoute(
+            purchaseId = selected.id,
+            onClose = viewModel::dismissSelection,
+            onSaved = viewModel::signatureSaved,
+            onSessionCheck = onSessionCheck,
+        )
+    } else PurchasesScreen(
         profile = profile,
         state = state,
         query = query,
@@ -64,7 +76,7 @@ fun PurchasesRoute(
         onRefresh = viewModel::refresh,
         onPage = viewModel::goToPage,
         onSignature = viewModel::selectForSignature,
-        onDismissSelection = viewModel::dismissSelection,
+        listState = listState,
         signingOut = signingOut,
         sessionError = sessionError,
         onLogout = onLogout,

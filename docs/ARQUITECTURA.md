@@ -34,6 +34,14 @@ screen/purchases/
   uistate/PurchasesUiState.kt    Estado de consulta y presentación
   viewmodel/PurchasesViewModel.kt
   di/PurchasesModule.kt          Cliente, repositorio y ViewModel
+
+screen/signature/
+  SignatureRoute.kt              Alcance de captura, cierre y éxito confirmado
+  SignatureScreen.kt             Pantalla completa y confirmaciones
+  components/                   Hoja girada y lienzo de trazos normalizados
+  uistate/SignatureUiState.kt
+  viewmodel/SignatureViewModel.kt
+  di/SignatureModule.kt          Repositorio, exportador y ViewModel
 ```
 
 Estas subcapas se crearán con código real al implementar cada funcionalidad. Evitar repositorios ficticios, DTO anticipados y casos de uso que solo reenvían llamadas sin aportar una regla.
@@ -45,7 +53,7 @@ Dependencias: `presentation → domain ← data`. `domain` no importa Ktor, Koin
 - Koin inicia en `App` mediante `KoinApplication`, ligado al ciclo de vida de la composición.
 - `core/di/AppModules.kt` registra JSON, motor HTTP y cliente como singletons.
 - Tanto el cliente como el motor se liberan al cerrar el contenedor.
-- `appModules` incluye autenticación, `loginModule` y `purchasesModule`, con repositorios y ViewModels por constructor.
+- `appModules` incluye autenticación, `loginModule`, `purchasesModule` y `signatureModule`, con repositorios y ViewModels por constructor.
 - Repositorios y ViewModels reciben dependencias por constructor. El contenedor no se consulta dentro del dominio.
 - `LoginViewModel` se registra con `viewModelOf` de Koin y se obtiene en Compose mediante `koinViewModel`, conservando el alcance de Lifecycle.
 
@@ -61,7 +69,7 @@ Dependencias: `presentation → domain ← data`. `domain` no importa Ktor, Koin
 - La cancelación de coroutines debe propagarse. No capturar `CancellationException` como error de negocio.
 - La vista dibuja y envía acciones; no consulta HTTP ni decide la agencia autorizada.
 
-El login está implementado en `screen/login` con `LoginUiState` separado, `LoginViewModel` y vista. Coordina restauración inicial, acceso, validación, reintento y cierre de sesión. Después del acceso muestra `screen/purchases`, cuyo ViewModel carga páginas y valida filtros. Una nueva consulta cancela la anterior y comprueba su identificador para descartar respuestas antiguas. Cada cambio de filtro vuelve a página 1; actualizar/reintentar conserva la consulta aplicada. La captura de firma corresponde a la siguiente etapa.
+El login está implementado en `screen/login` con `LoginUiState` separado, `LoginViewModel` y vista. Coordina restauración inicial, acceso, validación, reintento y cierre de sesión. Después del acceso muestra `screen/purchases`, cuyo ViewModel carga páginas y valida filtros. Una nueva consulta cancela la anterior y comprueba su identificador para descartar respuestas antiguas. Cada cambio de filtro vuelve a página 1; actualizar/reintentar conserva la consulta aplicada. La selección abre `screen/signature` con su propio ViewModelStore, liberado al cerrar la captura.
 
 ## Red
 
@@ -80,7 +88,7 @@ El cliente compartido ya dispone de:
 
 `App` utiliza `OroBestTheme`, que aplica la paleta aprobada sobre `ComposablesTheme` de `com.composables:ui:0.2.0`. Los colores y sus usos están documentados en [PALETA.md](PALETA.md) y centralizados en `core/designsystem/theme`. Está disponible `com.composables:icons-lucide:1.0.0`; sus vectores se usarán con el componente `Icon` de Composables UI.
 
-El contenedor raíz muestra `LoginRoute`. El formulario usa Composables UI e iconos Lucide; la contraseña usa `BasicSecureTextField` de Foundation con tokens del tema. Los campos viven en la ruta, la contraseña solo en memoria, sin guardarse en el estado del sistema operativo. El acceso exitoso muestra `PurchasesRoute`, con agencia, usuario y cierre de sesión. La lista usa `LazyColumn`, tarjetas blancas con bordes suaves, estado de firma y botones con iconos para agregar/editar. La selección de compra abre un aviso de la siguiente etapa; aún no captura ni sube imágenes.
+El contenedor raíz muestra `LoginRoute`. El formulario usa Composables UI e iconos Lucide; la contraseña usa `BasicSecureTextField` de Foundation con tokens del tema. Los campos viven en la ruta, la contraseña solo en memoria, sin guardarse en el estado del sistema operativo. El acceso exitoso muestra `PurchasesRoute`, con agencia, usuario y cierre de sesión. La lista usa `LazyColumn`, tarjetas blancas con bordes suaves, estado de firma y botones con iconos para agregar/editar. La selección abre `SignatureRoute`; un guardado confirmado actualiza el listado y muestra la versión guardada.
 
 `PurchasesRoute` tiene un `ViewModelStore` propio, identificado por usuario/agencia en la raíz y liberado al salir de la sesión. Así no se reutilizan compras/filtros de una cuenta anterior. Los campos de filtro se mantienen en la ruta y la consulta aplicada en `PurchasesUiState`; los cambios pendientes se indican antes de aplicar. Sin filtros de fecha se consulta todo el historial vigente de la agencia.
 
@@ -96,7 +104,17 @@ Los importes de `compra` son `DECIMAL(12,3)` y se conservan como texto decimal, 
 
 El repositorio serializa operaciones de sesión con Mutex y expone el perfil como StateFlow. Al restaurar consulta `auth/me`: errores de red conservan el token, `401` lo elimina y `403` conserva la credencial pero no publica un perfil autorizado. El logout elimina el token local incluso si falla la petición de revocación; en ese caso el servidor lo conserva hasta revocación o vencimiento.
 
-El backend admite ediciones versionadas de firma y reintentos idempotentes. El trabajo offline/cola de carga móvil aún no está implementado.
+## Captura PNG y orientación
+
+- Android declara `screenOrientation=portrait`; Xcode declara únicamente orientación vertical en iPhone/iPad. La hoja se mide con dimensiones intercambiadas y se coloca con una capa girada 90°, incluidos sus controles. Compose transforma también la entrada táctil a las coordenadas locales. Una ventana ya apaisada no recibe otro giro; validar las políticas de ventanas/orientación en tabletas recientes.
+- `SignatureCanvas` consume un puntero por trazo y almacena coordenadas normalizadas. La UI y el exportador usan la misma geometría suavizada. El PNG es 1600 × 800, blanco y azul de marca, sin guías. Codificación con Bitmap en Android y Skia en iOS/JVM; el renderizado se ejecuta fuera del hilo UI.
+- `SignaturePlatformEffect` intercepta Atrás de Android mediante Activity Compose y mantiene la pantalla encendida durante la captura en Android/iOS, restaurando el valor al salir. Los diálogos de descarte se miden y giran para mantener la misma orientación visual que la hoja.
+- `SignatureRepository` consulta detalle/revisión y la imagen de la versión actual con Bearer. La edición muestra la imagen previa y permite capturar nuevos trazos. La firma anterior no se altera hasta la confirmación del nuevo guardado.
+- El primer envío genera UUID y PNG; los reintentos conservan ese mismo contenido, revisión y versión base. La UI bloquea modificar el envío incierto y ofrece reintentar. Un conflicto `409` conserva los trazos visibles pero exige recarga explícita, con confirmación para descartarlos; nunca cambia silenciosamente la revisión bajo una firma capturada.
+- Solo se publica éxito si la API devuelve el ID y la versión esperados. No se permite guardar vacío, con el puntero aún activo ni mientras se guarda. Salir con trazos/envío incierto requiere confirmación. `401`/`403` solicita revalidación del acceso.
+- Los trazos y el envío pendiente están en memoria del ViewModel; todavía no hay cola offline persistente. Tras terminar el proceso se debe volver a consultar la compra, incluida su última versión, antes de otro envío.
+
+El backend guarda PNG en `<storageRoot>/<idcompra>/<nombre-aleatorio>.png` y la tabla `compra_firma` conserva ruta/versiones. El trabajo offline/cola persistente de carga móvil aún no está implementado.
 
 ## Comprobaciones
 
@@ -106,6 +124,8 @@ El backend admite ediciones versionadas de firma y reintentos idempotentes. El t
 - `AuthRepositoryTest` comprueba restauración desde un repositorio recreado, conservación de sesión sin conexión y eliminación ante `401`.
 - `LoginSessionTest` verifica el flujo ViewModel/repositorio con HTTP simulado: restauración al recrear la presentación, agencia actual del servidor, recuperación tras fallo de red, sesión vencida, validación, bloqueo de envíos duplicados y logout sin conexión.
 - `PurchasesFlowTest` verifica Bearer, parámetros autorizados, filtros/paginación, valores nulos, precisión decimal, fechas, reintentos, rechazo de acceso y descarte de respuestas antiguas.
+- `SignatureFlowTest` verifica consulta de revisión/imagen autorizada, multipart PNG, reintento idéntico, conflictos sin rebase automático, descarte, bloqueo de guardados vacíos/duplicados y rechazo de acceso.
+- `SignaturePngTest` renderiza y decodifica PNG real en JVM, verifica dimensiones, fondo blanco, orientación, trazos/puntos y ausencia de la guía. `jvmTest` incluye el runtime nativo de Compose Desktop para estas comprobaciones gráficas.
 - `backend/tests/run.php` verifica reglas de agencia, sesiones, firmas versionadas y conflictos en una base local efímera.
 - Ejecutar los tests Android/JVM y `assembleDebug` al modificar la infraestructura compartida.
 - Validar el framework y los tests iOS en macOS cuando ese entorno esté disponible.

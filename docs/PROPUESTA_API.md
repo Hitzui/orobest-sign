@@ -98,6 +98,10 @@ La API GET devuelve `image/png` con autorización por agencia y sin caché. El d
 
 El almacenamiento puede configurarse fuera de la carpeta pública con `OROBEST_SIGN_STORAGE_PATH`. La ubicación predeterminada es `runtime/signatures`, protegida por un `.htaccess` de denegación generado por el servicio; el hosting Apache debe respetarlo. Los archivos se crean sin reutilizar nombres ni sobrescribir versiones previas.
 
+Estructura real: `<raíz-de-firmas>/<idcompra>/<48-caracteres-hexadecimales-aleatorios>.png`. Por ejemplo, una compra con ID 123 guarda sus versiones dentro de `runtime/signatures/123/`. `compra_firma.file_path` almacena la ruta relativa y su versión. No se sobrescribe un archivo fijo `firma.png`; ese nombre solo identifica el adjunto enviado desde el móvil.
+
+El móvil ya consulta el detalle/revisión antes de capturar, permite ver la imagen de la versión anterior y envía PNG de 1600 × 800. Los reintentos conservan UUID, bytes, revisión y versión base durante esa captura. Solo una respuesta de guardado válida actualiza el listado como éxito; `409` requiere una nueva consulta explícita antes de firmar otra vez.
+
 ## Errores
 
 ```json

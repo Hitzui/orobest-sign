@@ -20,13 +20,12 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -61,7 +60,6 @@ import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.SlidersHorizontal
 import com.composables.icons.lucide.SquarePen
 import com.composables.icons.lucide.UserRound
-import com.composables.ui.components.AlertDialog
 import com.composables.ui.components.Button
 import com.composables.ui.components.ButtonStyle
 import com.composables.ui.components.Icon
@@ -97,14 +95,12 @@ fun PurchasesScreen(
     onRefresh: () -> Unit,
     onPage: (Int) -> Unit,
     onSignature: (Purchase) -> Unit,
-    onDismissSelection: () -> Unit,
+    listState: LazyListState,
     signingOut: Boolean,
     sessionError: String?,
     onLogout: () -> Unit,
 ) {
     val enabled = !signingOut && !state.requiresSessionCheck
-    val listState = rememberLazyListState()
-    LaunchedEffect(state.page, state.filters) { listState.scrollToItem(0) }
     Box(
         Modifier.fillMaxSize().background(Theme[colors][backgroundColor])
             .windowInsetsPadding(WindowInsets.safeDrawing).imePadding(),
@@ -151,6 +147,7 @@ fun PurchasesScreen(
             }
             if (signingOut) item(key = "signingOut") { MessagePanel("Cerrando sesión…") }
             sessionError?.let { message -> item(key = "sessionError") { MessagePanel(message) } }
+            state.notice?.let { message -> item(key = "notice") { MessagePanel(message) } }
             when {
                 state.loading -> item(key = "loading") {
                     Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -197,21 +194,6 @@ fun PurchasesScreen(
             }
         }
     }
-    val purchase = state.selectedPurchase
-    AlertDialog(
-        visible = purchase != null && enabled,
-        onDismissRequest = onDismissSelection,
-        title = { Text(if (purchase?.signatureVersion == null) "Agregar firma" else "Editar firma") },
-        icon = { Icon(Lucide.PenLine) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Compra ${purchase?.number.orEmpty()}", fontWeight = FontWeight.SemiBold)
-                Text(purchase?.customerName?.takeIf { it.isNotBlank() } ?: "Cliente no registrado")
-                Text("La captura y edición de la firma se habilitarán en la siguiente etapa.", fontSize = 14.sp, lineHeight = 21.sp)
-            }
-        },
-        positiveButton = { Button(onClick = onDismissSelection, modifier = Modifier.fillMaxWidth(), style = ButtonStyle.Primary) { Text("Volver a compras") } },
-    )
 }
 
 @Composable

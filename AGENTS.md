@@ -8,13 +8,14 @@ Leer `README.md`, `docs/ARQUITECTURA.md`, `docs/ANALISIS_WEB.md` y `docs/PROPUES
 
 ## Acuerdos actuales
 
-- Login persistente implementado en `screen/login`. El usuario autorizó el listado de compras con filtros, estilo empresarial y acciones agregar/editar firma. Su presentación está en `screen/purchases`, con UiState separado y ViewModel por DI; la captura de firma queda para la siguiente etapa.
+- Login persistente en `screen/login`, listado con filtros en `screen/purchases` y captura PNG en `screen/signature`, con UiState separado y ViewModels por DI. El usuario aprobó una pantalla completa para firma, app fija en vertical y hoja/controles girados para sostener el teléfono de lado; AlertDialog de Composables UI al descartar trazos.
 - El usuario aprobó el módulo `sign`, `/api/sign/v1` y dos tablas nuevas: `sign_api_token` y `compra_firma`. No alterar tablas existentes. Consultar cambios de alcance adicionales.
 - Acceso para todos los usuarios activos con agencia activa, incluidos los de caja, sin permiso RBAC adicional. Compras por agencia, no por caja ni creador. Sesión persistente y firma editable con versiones.
 - Dominio aprobado: `https://orobestni.com/`. El usuario sube los archivos y sincroniza el esquema del hosting después de las migraciones locales. No conectarse a la base de producción.
 - Conservar la estructura de la tabla `usuario`. Si se considera necesario un ajuste, explicar el motivo y consultarlo primero.
 - No reutilizar permisos ni tokens de RRHH para firmas sin una decisión explícita.
 - La firma se vincula por `idcompra`. La agencia de la compra se deriva de `compra.idcaja → caja.idagencia`; la autorización corresponde al servidor.
+- Consultar revisión y versión actuales antes de firmar. Reintentos de un envío incierto conservan PNG, `operation_id`, `compra_revision` y `base_version`; los conflictos requieren recarga explícita. Los trazos y envíos pendientes viven en memoria, sin cola offline persistente.
 - El análisis detectó dos cuentas activas con el mismo `username`; resolver la ambigüedad de datos antes de habilitar ese acceso. No copiar información personal ni credenciales a este repositorio.
 
 ## Convenciones

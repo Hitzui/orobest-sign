@@ -8,7 +8,7 @@ Repositorio: <https://github.com/Hitzui/orobest-sign>
 
 Base KMP preparada con DI, MVVM, cliente HTTP, serialización y Composables UI/Lucide. El backend Sign v1 está implementado y migrado **localmente**, con acceso por agencia, sesión persistente y edición versionada de firmas.
 
-La entrada `App` inicializa Koin, el tema y el **login con sesión persistente**. Al abrir la app se restaura la sesión guardada consultando el servidor; si no hay sesión válida se muestra el formulario. Después del acceso se muestra la **lista paginada de compras de la agencia**, con búsqueda por número, filtros de fechas/estado de firma, actualización y cierre de sesión. Cada compra muestra cliente, fecha, total y la acción agregar/editar firma. La captura se implementará en la siguiente etapa.
+La entrada `App` inicializa Koin, el tema y el **login con sesión persistente**. Al abrir la app se restaura la sesión guardada consultando el servidor; si no hay sesión válida se muestra el formulario. Después del acceso se muestra la **lista paginada de compras de la agencia**, con filtros y acciones de firma. La captura abre una pantalla completa, exporta PNG y lo sube a la API, con edición versionada y reintentos idempotentes. El éxito se muestra únicamente cuando el servidor confirma el guardado.
 
 Dominio aprobado: `https://orobestni.com/`. El propietario subirá los archivos y sincronizará únicamente las dos tablas nuevas: [instrucciones de hosting](docs/DESPLIEGUE_HOSTING.md).
 
@@ -64,7 +64,7 @@ shared/src/
       auth/                    Dominio, DTO, cliente y repositorio de autenticación
       agency/                  Modelo de agencia de la sesión
       purchases/               Dominio, DTO, cliente y repositorio de compras
-      signature/               Alcance documentado de firma
+      signature/               Dominio, HTTP, repositorio y exportador PNG
     screen/login/
       LoginRoute.kt            Conexión de Compose con ViewModel y estado de campos
       LoginScreen.kt           Formulario y estados de sesión con Composables UI
@@ -78,6 +78,13 @@ shared/src/
       uistate/                 Estado inmutable separado de la vista
       viewmodel/               Cargas, filtros, reintentos y selección
       di/                      Repositorio y ViewModel por constructor
+    screen/signature/
+      SignatureRoute.kt        Alcance de captura y navegación de regreso
+      SignatureScreen.kt       Hoja horizontal, vista previa y confirmaciones
+      components/              Lienzo táctil y disposición girada
+      uistate/                 Estado de trazos, envío y conflictos
+      viewmodel/               Revisión, versiones, PNG y reintentos
+      di/                      Registro de dependencias de firma
   androidMain/                 OkHttp y almacenamiento cifrado con Keystore
   iosMain/                     Darwin y almacenamiento en Keychain
   jvmMain/                     CIO y sesión en memoria para desarrollo
@@ -94,7 +101,7 @@ backend/
   tools/                      Migración local aislada y verificación del esquema
 ```
 
-La organización por funcionalidad separa dominio y datos en `feature/auth` y `feature/purchases`, con presentación en `screen/login` y `screen/purchases`. Firma tiene su alcance móvil documentado y backend disponible.
+La organización por funcionalidad separa dominio y datos en `feature/auth`, `feature/purchases` y `feature/signature`, con presentación en `screen/login`, `screen/purchases` y `screen/signature`.
 
 ## Relación con la web
 
@@ -150,8 +157,23 @@ El login obtiene su ViewModel por Koin y observa `LoginUiState` con Lifecycle. U
 - **Limpiar** elimina los filtros y vuelve a la primera página. **Actualizar** repite la consulta aplicada.
 - Los importes conservan los decimales exactos de la API, sin conversión a `Double` ni moneda asumida. Las fechas se muestran en el calendario de la agencia.
 - Ante `401`/`403` se vuelve a verificar la sesión. Las compras se liberan al salir del alcance autenticado; los errores de red permiten reintentar.
-- Los botones **Agregar firma / Editar firma**, con iconos Lucide, seleccionan la compra por `idcompra`. Por ahora muestran esa selección e indican que la captura/edición corresponde a la siguiente etapa; todavía no generan ni suben imágenes.
+- Los botones **Agregar firma / Editar firma**, con iconos Lucide, abren la captura vinculada por `idcompra`. Al guardar se actualiza el listado conservando los filtros.
+
+## Captura y almacenamiento de firma
+
+- La app móvil declara orientación vertical. La hoja de captura y sus controles se dibujan girados 90°: sostener el teléfono de lado con su parte superior hacia la izquierda. La aplicación no cambia de orientación al girar físicamente el teléfono.
+- En ventanas que el sistema mantenga apaisadas, la hoja aprovecha esa disposición sin un giro adicional. Android en pantallas grandes y sistemas iPad recientes pueden imponer reglas de orientación/redimensionado propias; validar en los dispositivos previstos.
+- Antes de capturar se consulta la compra actual: revisión, estado y versión de firma. Al editar se muestra la imagen anterior, descargada con autorización; **Capturar nueva** permite reemplazarla mediante una nueva versión.
+- **Limpiar**, **Cancelar** y **Guardar firma**. No se permite guardar un lienzo vacío ni enviar dos veces mientras hay un guardado en curso. Salir con trazos pendientes requiere confirmación mediante Composables UI.
+- La exportación genera un **PNG horizontal de 1600 × 800**, fondo blanco y tinta azul de marca, sin controles ni línea guía. Android codifica con Bitmap y iOS/JVM con Skia.
+- La carga multipart incluye `operation_id`, `compra_revision`, `base_version` y el archivo PNG. Si no se confirma la respuesta se conserva el mismo envío para **Reintentar guardado**, sin permitir cambiar sus trazos durante ese reintento.
+- Si otra persona cambia la compra/firma, se solicita recarga explícita y se confirma el descarte de los trazos antes de capturar sobre los datos actuales.
+- Los trazos y el envío pendiente viven en memoria: todavía no existe una cola offline persistente. Tras cerrar el proceso, volver a consultar la compra para comprobar su última firma.
+- En el hosting, el backend guarda los archivos bajo `runtime/signatures/<idcompra>/<48-caracteres-aleatorios>.png`, o bajo `OROBEST_SIGN_STORAGE_PATH` si está configurado. La tabla `compra_firma` guarda la ubicación, versión y vínculo con la compra. Cada edición conserva el archivo anterior.
+- La imagen se consulta por la API autenticada `compras/{idcompra}/firma`, no mediante una URL pública al archivo. Ver [despliegue](docs/DESPLIEGUE_HOSTING.md).
+
+Verificación de captura en Windows: pruebas Android/JVM del flujo de envío, conflictos, acceso y reintentos, más exportación PNG real en JVM. Compilación Android debug comprobada. El giro/tacto en dispositivo y la compilación/ejecución iOS requieren validación en sus entornos nativos.
 
 ## Siguiente etapa
 
-Probar el listado y sus filtros en dispositivo. La siguiente etapa móvil comprende captura/edición de firma sobre la compra seleccionada. Queda por decidir la ubicación de la firma en el comprobante y su tratamiento visual si una compra firmada fue modificada. Las instrucciones del backend están en [DESPLIEGUE_HOSTING.md](docs/DESPLIEGUE_HOSTING.md).
+Probar el flujo completo en dispositivo y hosting: capturar, guardar, volver a consultar y editar. Queda por decidir la ubicación de la firma en el comprobante y su tratamiento visual si una compra firmada fue modificada. Las instrucciones del backend están en [DESPLIEGUE_HOSTING.md](docs/DESPLIEGUE_HOSTING.md).

@@ -37,12 +37,17 @@ class PurchasesViewModel(private val repository: PurchasesRepository) : StateVie
 
     fun dismissSelection() = updateState { it.copy(selectedPurchase = null) }
 
+    fun signatureSaved(version: Int) {
+        refresh()
+        updateState { it.copy(notice = "Firma guardada correctamente · versión $version.") }
+    }
+
     private fun load(page: Int, filters: PurchaseFilters) {
         request?.cancel()
         val id = ++requestId
         updateState {
             it.copy(items = emptyList(), page = page, filters = filters, total = 0, totalPages = 0,
-                loading = true, error = null, filterError = null, requiresSessionCheck = false, selectedPurchase = null)
+                loading = true, error = null, filterError = null, requiresSessionCheck = false, selectedPurchase = null, notice = null)
         }
         request = viewModelScope.launch {
             try {

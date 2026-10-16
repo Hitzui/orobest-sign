@@ -9,6 +9,7 @@ import com.jomiro.app.orobest_sign.feature.auth.data.repository.DefaultAuthRepos
 import com.jomiro.app.orobest_sign.feature.auth.domain.repository.AuthRepository
 import com.jomiro.app.orobest_sign.screen.login.di.loginModule
 import com.jomiro.app.orobest_sign.screen.purchases.di.purchasesModule
+import com.jomiro.app.orobest_sign.screen.signature.di.signatureModule
 import org.koin.dsl.module
 import org.koin.dsl.onClose
 
@@ -28,4 +29,4 @@ private val authModule = module {
     single<AuthRepository> { DefaultAuthRepository(get(), get()) }
 }
 
-val appModules = listOf(networkModule, platformModule, authModule, loginModule, purchasesModule)
+val appModules = listOf(networkModule, platformModule, authModule, loginModule, purchasesModule, signatureModule)

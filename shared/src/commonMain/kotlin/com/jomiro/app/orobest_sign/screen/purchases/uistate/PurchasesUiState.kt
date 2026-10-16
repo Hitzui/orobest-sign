@@ -14,4 +14,5 @@ data class PurchasesUiState(
     val filterError: String? = null,
     val requiresSessionCheck: Boolean = false,
     val selectedPurchase: Purchase? = null,
+    val notice: String? = null,
 )
