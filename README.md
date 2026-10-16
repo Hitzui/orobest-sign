@@ -119,7 +119,7 @@ compra.idcaja ──> caja.idcaja
 
 La tabla `usuario` puede conservar su estructura. Se detectaron dos cuentas activas con el mismo `username`, que requieren revisión de datos antes del login móvil. Consulta los detalles en [el análisis web](docs/ANALISIS_WEB.md).
 
-La migración local añadió únicamente `sign_api_token` y `compra_firma`; los esquemas de `usuario`, `agencia`, `caja` y `compra` se verificaron sin cambios. La sesión Sign dura 90 días de inactividad y se renueva con cada petición autenticada. La firma se integrará visualmente en el comprobante cuando se defina el lugar.
+La migración local añadió únicamente `sign_api_token` y `compra_firma`; los esquemas de `usuario`, `agencia`, `caja` y `compra` se verificaron sin cambios. La sesión Sign dura 90 días de inactividad y se renueva con cada petición autenticada. El comprobante PDF muestra la última firma debajo de TOTALES, con proporción preservada y fecha debajo; si no hay imagen se conserva la línea para firma manual.
 
 ## Requisitos y comandos
 
@@ -178,4 +178,4 @@ Verificación de captura en Windows: pruebas Android/JVM del flujo de envío, co
 
 ## Siguiente etapa
 
-Probar el flujo completo en dispositivo y hosting: capturar, guardar, volver a consultar y editar. Queda por decidir la ubicación de la firma en el comprobante y su tratamiento visual si una compra firmada fue modificada. Las instrucciones del backend están en [DESPLIEGUE_HOSTING.md](docs/DESPLIEGUE_HOSTING.md).
+Probar el flujo completo en dispositivo y hosting: capturar, guardar, volver a consultar, editar e imprimir el comprobante. La firma impresa corresponde a la versión más reciente disponible; una compra modificada conserva el indicador de revisión en la app, mientras que el comprobante refleja la firma más reciente registrada. Las instrucciones del backend están en [DESPLIEGUE_HOSTING.md](docs/DESPLIEGUE_HOSTING.md).

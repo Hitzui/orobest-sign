@@ -121,7 +121,7 @@ class FirmaService
 
     private function storageRoot(): string
     {
-        $root = Yii::getAlias($this->module->storagePath);
+        $root = $this->storagePath();
         FileHelper::createDirectory($root, 0700);
         // Protección Apache también para instalaciones cuya raíz pública es @app.
         $deny = $root . '/.htaccess';
@@ -129,6 +129,11 @@ class FirmaService
             throw new \RuntimeException('Unable to protect signature storage');
         }
         return $root;
+    }
+
+    private function storagePath(): string
+    {
+        return Yii::getAlias($this->module->storagePath);
     }
 
     public function image(int $id, int $agency, $version = null): array
@@ -139,7 +144,8 @@ class FirmaService
             $query->andWhere(['version' => CompraAccessService::integer($version, 'version')]);
         }
         $signature = $query->orderBy(['version' => SORT_DESC])->one();
-        if (!$signature || !preg_match('/^[1-9][0-9]*\/[a-f0-9]{48}\.png$/D', $signature->file_path)) {
+        $expectedPath = '/^' . preg_quote((string) $id, '/') . '\/[a-f0-9]{48}\.png$/D';
+        if (!$signature || !preg_match($expectedPath, $signature->file_path)) {
             throw new ApiException(404, 'signature_not_found', 'Firma no encontrada.');
         }
         $path = $this->storageRoot() . '/' . $signature->file_path;
@@ -147,5 +153,21 @@ class FirmaService
             throw new ApiException(404, 'signature_not_found', 'La imagen de la firma no está disponible.');
         }
         return [$path, $signature];
+    }
+
+    /**
+     * Obtiene la ruta de la última imagen para el comprobante web.
+     * El controlador de impresión debe comprobar previamente el acceso a la compra.
+     */
+    public function latestImageForPrint(int $id): ?string
+    {
+        $signature = CompraFirma::find()->where(['idcompra' => $id])
+            ->orderBy(['version' => SORT_DESC])->one();
+        $expectedPath = '/^' . preg_quote((string) $id, '/') . '\/[a-f0-9]{48}\.png$/D';
+        if (!$signature || !preg_match($expectedPath, $signature->file_path)) {
+            return null;
+        }
+        $path = $this->storagePath() . '/' . $signature->file_path;
+        return is_file($path) ? $path : null;
     }
 }

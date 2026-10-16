@@ -1,6 +1,6 @@
 # API Sign v1 — contrato aprobado e implementado localmente
 
-Acuerdos del propietario: módulo `sign`, todos los usuarios activos (incluidos caja), compras de la agencia completa, sesión persistente, firma editable y dos tablas nuevas sin alterar las existentes. La imagen se usará en el comprobante; su ubicación visual se decidirá después.
+Acuerdos del propietario: módulo `sign`, todos los usuarios activos (incluidos caja), compras de la agencia completa, sesión persistente, firma editable y dos tablas nuevas sin alterar las existentes. La última versión de la firma se incluye en el comprobante debajo de TOTALES, en el espacio de Firma del Cliente.
 
 Producción prevista: **`https://orobestni.com/api/sign/v1/`**. El propietario subirá los archivos y sincronizará el esquema; esta entrega no accede a la base del hosting.
 
@@ -90,7 +90,7 @@ Respuesta: `data.firma` incluye ID, compra, versión, usuario que registró, rev
 - Crear o editar en una compra anulada devuelve `409 purchase_not_active`.
 - La comprobación de versión está protegida por una transacción y bloqueo de la compra.
 
-Una compra modificada conserva su firma histórica y queda marcada en el detalle como modificada. No se bloquea ni cambia la edición de compras en la web. Las anuladas conservan las imágenes; no aparecen en el listado de vigentes ni admiten nuevas firmas. La política visual del comprobante cuando haya cambios se acordará junto con su ubicación.
+Una compra modificada conserva su firma histórica y queda marcada en el detalle como modificada. No se bloquea ni cambia la edición de compras en la web. Las anuladas conservan las imágenes; no aparecen en el listado de vigentes ni admiten nuevas firmas. El comprobante presenta la versión más reciente disponible, manteniendo la proporción original de 2:1 y un ancho de impresión de 60 mm; la fecha del comprobante permanece debajo. Si no hay archivo de firma disponible, se conserva la línea para firma manuscrita.
 
 ## Imágenes y almacenamiento
 

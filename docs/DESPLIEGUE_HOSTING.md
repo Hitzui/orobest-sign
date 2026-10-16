@@ -2,7 +2,7 @@
 
 El backend está instalado localmente en `C:\xampp\htdocs\orobest`. La copia entregable y versionada se encuentra en `E:\Mobil\orobest-sign\backend\orobest`.
 
-**No se ha conectado ni migrado la base del hosting.** El propietario sincroniza el esquema local y sube los archivos. La inserción visual de la firma en el comprobante queda pendiente de decidir su ubicación.
+**No se ha conectado ni migrado la base del hosting.** El propietario sincroniza el esquema local y sube los archivos. La ubicación acordada para la firma en el comprobante es debajo de TOTALES, en el espacio de Firma del Cliente.
 
 ## 1. Sincronizar exclusivamente las tablas nuevas
 
@@ -44,6 +44,17 @@ modules/sign/migrations/m261015_000038_create_sign_tables.php
 ```
 
 La migración puede conservarse como referencia de versión; subirla no la ejecuta. No es necesario subir `backend/tests`, `backend/tools`, archivos Kotlin, el APK ni el repositorio completo al hosting.
+
+### Actualizar el comprobante
+
+Para incluir la firma en el PDF, copia también desde `backend/orobest/` y reemplaza en el proyecto Yii del hosting:
+
+```text
+controllers/CompraController.php
+views/compra/print.php
+```
+
+La copia de entrega contiene los mismos archivos que `C:\xampp\htdocs\orobest`. El controlador lee la última firma guardada dentro del almacenamiento privado configurado; no publica ni construye una URL pública para la imagen. El comprobante la muestra debajo de TOTALES en el espacio de Firma del Cliente, a 60 mm de ancho con proporción conservada. Si aún no existe firma, se mantiene el espacio de firma manuscrita.
 
 ## 3. Cambio puntual en `config/web.php`
 
@@ -87,7 +98,7 @@ https://orobestni.com/api/sign/v1/auth/me
 
 Después verificar login, `me` tras reiniciar el móvil, compras de la agencia completa, rechazo de una compra de otra sucursal, carga y edición de una firma, y logout. Los ejemplos completos de campos y respuestas están en [PROPUESTA_API.md](PROPUESTA_API.md).
 
-La ubicación de la imagen en `views/compra/print.php` se implementará después de que indiques el lugar. Esta entrega no modifica esa plantilla.
+El comprobante PDF muestra la firma debajo de TOTALES, conservando la proporción PNG y la fecha del comprobante. Esta parte requiere subir los dos archivos web indicados arriba; la API y la impresión leen las firmas existentes sin migraciones adicionales.
 
 ## Verificación local de esta entrega
 

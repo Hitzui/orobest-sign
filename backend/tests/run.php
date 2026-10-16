@@ -130,6 +130,8 @@ try {
     [$oldPath] = $service->image(1, 1, 1);
     [$latestPath] = $service->image(1, 1);
     check($oldPath !== $latestPath && is_file($oldPath), 'historial conserva imágenes');
+    check($service->latestImageForPrint(1) === $latestPath, 'comprobante obtiene la última imagen privada');
+    check($service->latestImageForPrint(2) === null, 'compra sin firma conserva el espacio de firma manual');
     $stale = array_replace($params, ['operation_id' => '33333333-3333-4333-8333-333333333333']);
     rejects(fn () => $service->save(1, 1, 1, $stale, $png), 'signature_changed');
     $db->createCommand()->update('compra', ['total' => '999.000'], ['idcompra' => 1])->execute();
