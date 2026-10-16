@@ -51,10 +51,11 @@ Para incluir la firma en el PDF, copia también desde `backend/orobest/` y reemp
 
 ```text
 controllers/CompraController.php
+modules/sign/services/FirmaService.php
 views/compra/print.php
 ```
 
-La copia de entrega contiene los mismos archivos que `C:\xampp\htdocs\orobest`. El controlador lee la última firma guardada dentro del almacenamiento privado configurado; no publica ni construye una URL pública para la imagen. El comprobante la muestra debajo de TOTALES en el espacio de Firma del Cliente, a 60 mm de ancho con proporción conservada. Si aún no existe firma, se mantiene el espacio de firma manuscrita.
+La copia de entrega contiene los mismos archivos que `C:\xampp\htdocs\orobest`. Es necesario actualizar `FirmaService.php` junto con el controlador porque incorpora el método que recupera la última imagen. El controlador lee la firma dentro del almacenamiento privado configurado; no publica ni construye una URL pública para la imagen. El comprobante la muestra debajo de TOTALES en el espacio de Firma del Cliente, a 60 mm de ancho con proporción conservada. Si aún no existe firma, se mantiene el espacio de firma manuscrita.
 
 ## 3. Cambio puntual en `config/web.php`
 
