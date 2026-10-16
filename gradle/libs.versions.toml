@@ -19,6 +19,7 @@ ktor = "3.6.0"
 kotlinx-serialization = "1.11.0"
 composables-ui = "0.2.0"
 composables-icons = "1.0.0"
+slf4j = "2.0.19"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -54,6 +55,7 @@ ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
 ktor-client-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
 composables-ui = { module = "com.composables:ui", version.ref = "composables-ui" }
 composables-icons-lucide = { module = "com.composables:icons-lucide", version.ref = "composables-icons" }
+slf4j-nop = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

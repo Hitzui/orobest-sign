@@ -13,6 +13,7 @@ dependencies {
     implementation(libs.kotlinx.coroutinesSwing)
 
     implementation(libs.compose.uiToolingPreview)
+    runtimeOnly(libs.slf4j.nop)
 }
 
 compose.desktop {
