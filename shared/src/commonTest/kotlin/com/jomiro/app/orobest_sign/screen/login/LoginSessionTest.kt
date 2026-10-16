@@ -173,6 +173,31 @@ class LoginSessionTest {
         }
     }
 
+    @Test
+    fun expiredSessionWhileBrowsingReturnsToLoginOnRevalidation() = runTest {
+        val store = Store().apply { token = "synthetic-token" }
+        var expired = false
+        val engine = mockEngine {
+            if (expired) respond("""{"error":{"code":"invalid_session","message":"Sesión vencida"}}""", HttpStatusCode.Unauthorized, jsonHeaders)
+            else respond(sessionJson(), headers = jsonHeaders)
+        }
+        val client = createHttpClient(engine, createWireJson())
+        try {
+            val viewModel = LoginViewModel(DefaultAuthRepository(AuthApi(client, config), store))
+            viewModel.awaitIdle()
+            assertEquals(LoginPhase.Authenticated, viewModel.state.value.phase)
+            expired = true
+            viewModel.restoreSession()
+            viewModel.awaitIdle()
+            assertEquals(LoginPhase.SignIn, viewModel.state.value.phase)
+            assertNull(store.token)
+            assertNull(viewModel.state.value.profile)
+        } finally {
+            client.close()
+            engine.close()
+        }
+    }
+
     private fun TestScope.mockEngine(handler: MockRequestHandler) = MockEngine(MockEngineConfig().apply {
         dispatcher = StandardTestDispatcher(testScheduler)
         addHandler(handler)

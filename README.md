@@ -8,7 +8,7 @@ Repositorio: <https://github.com/Hitzui/orobest-sign>
 
 Base KMP preparada con DI, MVVM, cliente HTTP, serialización y Composables UI/Lucide. El backend Sign v1 está implementado y migrado **localmente**, con acceso por agencia, sesión persistente y edición versionada de firmas.
 
-La entrada `App` inicializa Koin, el tema y el **login con sesión persistente**. Al abrir la app se restaura la sesión guardada consultando el servidor; si no hay sesión válida se muestra el formulario. El login incluye validación, contraseña oculta/visible, estados de carga, reintento sin perder el token y cierre de sesión. Después del acceso se muestra el usuario y su agencia. El cliente móvil de compras y la captura se implementarán en la siguiente etapa.
+La entrada `App` inicializa Koin, el tema y el **login con sesión persistente**. Al abrir la app se restaura la sesión guardada consultando el servidor; si no hay sesión válida se muestra el formulario. Después del acceso se muestra la **lista paginada de compras de la agencia**, con búsqueda por número, filtros de fechas/estado de firma, actualización y cierre de sesión. Cada compra muestra cliente, fecha, total y la acción agregar/editar firma. La captura se implementará en la siguiente etapa.
 
 Dominio aprobado: `https://orobestni.com/`. El propietario subirá los archivos y sincronizará únicamente las dos tablas nuevas: [instrucciones de hosting](docs/DESPLIEGUE_HOSTING.md).
 
@@ -63,7 +63,7 @@ shared/src/
     feature/
       auth/                    Dominio, DTO, cliente y repositorio de autenticación
       agency/                  Modelo de agencia de la sesión
-      purchases/               Alcance documentado de compras
+      purchases/               Dominio, DTO, cliente y repositorio de compras
       signature/               Alcance documentado de firma
     screen/login/
       LoginRoute.kt            Conexión de Compose con ViewModel y estado de campos
@@ -71,6 +71,13 @@ shared/src/
       uistate/LoginUiState.kt   Estado inmutable, separado de la vista
       viewmodel/               LoginViewModel con StateFlow y restauración
       di/                      Registro del ViewModel con Koin
+    screen/purchases/
+      PurchasesRoute.kt        Alcance de sesión y conexión con el ViewModel
+      PurchasesScreen.kt       Listado, filtros, paginación y acciones de firma
+      PurchaseFormatting.kt    Presentación exacta de importes y fechas
+      uistate/                 Estado inmutable separado de la vista
+      viewmodel/               Cargas, filtros, reintentos y selección
+      di/                      Repositorio y ViewModel por constructor
   androidMain/                 OkHttp y almacenamiento cifrado con Keystore
   iosMain/                     Darwin y almacenamiento en Keychain
   jvmMain/                     CIO y sesión en memoria para desarrollo
@@ -87,7 +94,7 @@ backend/
   tools/                      Migración local aislada y verificación del esquema
 ```
 
-La organización por funcionalidad separa dominio y datos de autenticación en `feature/auth`, con su presentación en `screen/login`. Compras y firma tienen su alcance móvil documentado y backend disponible.
+La organización por funcionalidad separa dominio y datos en `feature/auth` y `feature/purchases`, con presentación en `screen/login` y `screen/purchases`. Firma tiene su alcance móvil documentado y backend disponible.
 
 ## Relación con la web
 
@@ -134,6 +141,17 @@ Android cifra el token con AES-GCM y una clave de Keystore; iOS usa Keychain. No
 
 El login obtiene su ViewModel por Koin y observa `LoginUiState` con Lifecycle. Un fallo de conexión al restaurar ofrece **Reintentar** o **Usar otra cuenta**; solo se publica una sesión activa después de verificarla con el servidor. La contraseña vive únicamente en memoria del formulario, sin `rememberSaveable`, y se limpia al autenticar. El cierre de sesión elimina el token local incluso si no hay conexión para revocarlo en el servidor.
 
+## Compras y filtros
+
+- Consulta las compras vigentes de **todas las cajas de la agencia**, con 20 compras por página, ordenadas por fecha descendente por el servidor.
+- Busca por número de compra con el botón de búsqueda o la tecla buscar del teclado.
+- **Todas / Pendientes / Firmadas** aplica el estado de firma y los campos actuales.
+- **Rango de fechas** permite indicar desde/hasta en `AAAA-MM-DD`, con días incluidos. Las fechas se validan antes de consultar; por defecto se incluye todo el historial vigente.
+- **Limpiar** elimina los filtros y vuelve a la primera página. **Actualizar** repite la consulta aplicada.
+- Los importes conservan los decimales exactos de la API, sin conversión a `Double` ni moneda asumida. Las fechas se muestran en el calendario de la agencia.
+- Ante `401`/`403` se vuelve a verificar la sesión. Las compras se liberan al salir del alcance autenticado; los errores de red permiten reintentar.
+- Los botones **Agregar firma / Editar firma**, con iconos Lucide, seleccionan la compra por `idcompra`. Por ahora muestran esa selección e indican que la captura/edición corresponde a la siguiente etapa; todavía no generan ni suben imágenes.
+
 ## Siguiente etapa
 
-Verificar la API desplegada y probar el login/persistencia en dispositivo. La siguiente etapa móvil comprende compras por agencia y captura/edición de firma. Queda por decidir la ubicación de la firma en el comprobante y su tratamiento visual si una compra firmada fue modificada. Las instrucciones del backend están en [DESPLIEGUE_HOSTING.md](docs/DESPLIEGUE_HOSTING.md).
+Probar el listado y sus filtros en dispositivo. La siguiente etapa móvil comprende captura/edición de firma sobre la compra seleccionada. Queda por decidir la ubicación de la firma en el comprobante y su tratamiento visual si una compra firmada fue modificada. Las instrucciones del backend están en [DESPLIEGUE_HOSTING.md](docs/DESPLIEGUE_HOSTING.md).

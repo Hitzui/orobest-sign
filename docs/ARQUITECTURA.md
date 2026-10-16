@@ -26,6 +26,14 @@ screen/login/
   uistate/LoginUiState.kt        Estado inmutable de presentación
   viewmodel/LoginViewModel.kt    Acciones y coordinación de sesión
   di/LoginModule.kt              Registro del ViewModel
+
+screen/purchases/
+  PurchasesRoute.kt              Alcance de sesión, campos y observación de estado
+  PurchasesScreen.kt             Listado, filtros, paginación y selección de compra
+  PurchaseFormatting.kt          Decimales exactos y calendario de la agencia
+  uistate/PurchasesUiState.kt    Estado de consulta y presentación
+  viewmodel/PurchasesViewModel.kt
+  di/PurchasesModule.kt          Cliente, repositorio y ViewModel
 ```
 
 Estas subcapas se crearán con código real al implementar cada funcionalidad. Evitar repositorios ficticios, DTO anticipados y casos de uso que solo reenvían llamadas sin aportar una regla.
@@ -37,7 +45,7 @@ Dependencias: `presentation → domain ← data`. `domain` no importa Ktor, Koin
 - Koin inicia en `App` mediante `KoinApplication`, ligado al ciclo de vida de la composición.
 - `core/di/AppModules.kt` registra JSON, motor HTTP y cliente como singletons.
 - Tanto el cliente como el motor se liberan al cerrar el contenedor.
-- `appModules` incluye autenticación y `loginModule` para resolver el ViewModel por constructor.
+- `appModules` incluye autenticación, `loginModule` y `purchasesModule`, con repositorios y ViewModels por constructor.
 - Repositorios y ViewModels reciben dependencias por constructor. El contenedor no se consulta dentro del dominio.
 - `LoginViewModel` se registra con `viewModelOf` de Koin y se obtiene en Compose mediante `koinViewModel`, conservando el alcance de Lifecycle.
 
@@ -53,7 +61,7 @@ Dependencias: `presentation → domain ← data`. `domain` no importa Ktor, Koin
 - La cancelación de coroutines debe propagarse. No capturar `CancellationException` como error de negocio.
 - La vista dibuja y envía acciones; no consulta HTTP ni decide la agencia autorizada.
 
-El login está implementado en `screen/login` con `LoginUiState` separado, `LoginViewModel` y vista. Coordina restauración inicial, acceso, validación, reintento y cierre de sesión. Las pantallas de compras/firma corresponden a la siguiente etapa.
+El login está implementado en `screen/login` con `LoginUiState` separado, `LoginViewModel` y vista. Coordina restauración inicial, acceso, validación, reintento y cierre de sesión. Después del acceso muestra `screen/purchases`, cuyo ViewModel carga páginas y valida filtros. Una nueva consulta cancela la anterior y comprueba su identificador para descartar respuestas antiguas. Cada cambio de filtro vuelve a página 1; actualizar/reintentar conserva la consulta aplicada. La captura de firma corresponde a la siguiente etapa.
 
 ## Red
 
@@ -66,13 +74,15 @@ El cliente compartido ya dispone de:
 - Redirecciones desactivadas; las futuras rutas de API deberán responder directamente.
 - Motores OkHttp / Darwin / CIO seleccionados mediante `expect` / `actual`.
 
-`ApiConfig.Production` configura el dominio aprobado `https://orobestni.com/api/sign/v1/`. `AuthApi` usa JSON y Bearer para login, perfil y logout; `DefaultAuthRepository` implementa restauración y cierre de sesión. Al crear `LoginViewModel` se restaura la sesión: solo se consulta `auth/me` si existe un token local. El cliente de compras/cargas y sus pantallas se incorporarán en la siguiente etapa.
+`ApiConfig.Production` configura el dominio aprobado `https://orobestni.com/api/sign/v1/`. `AuthApi` usa JSON y Bearer para login, perfil y logout; `DefaultAuthRepository` implementa restauración y cierre de sesión. Al crear `LoginViewModel` se restaura la sesión: solo se consulta `auth/me` si existe un token local. `PurchasesApi` consulta `compras` con Bearer y exclusivamente los parámetros aprobados. El token se obtiene en el repositorio desde `SessionStore`, sin exponerlo a la UI. Un rechazo `401`/`403` solicita revalidación desde el login, eliminando el contexto del listado mientras se verifica.
 
 ## UI e iconos
 
 `App` utiliza `OroBestTheme`, que aplica la paleta aprobada sobre `ComposablesTheme` de `com.composables:ui:0.2.0`. Los colores y sus usos están documentados en [PALETA.md](PALETA.md) y centralizados en `core/designsystem/theme`. Está disponible `com.composables:icons-lucide:1.0.0`; sus vectores se usarán con el componente `Icon` de Composables UI.
 
-El contenedor raíz muestra `LoginRoute`. El formulario usa Composables UI e iconos Lucide; la contraseña usa `BasicSecureTextField` de Foundation con tokens del tema. Los campos viven en la ruta, la contraseña solo en memoria, sin guardarse en el estado del sistema operativo. El acceso exitoso muestra usuario/agencia y permite cerrar sesión. La captura de firma necesitará una superficie de trazos y un exportador PNG; su implementación y las adaptaciones nativas se decidirán al desarrollar esa funcionalidad.
+El contenedor raíz muestra `LoginRoute`. El formulario usa Composables UI e iconos Lucide; la contraseña usa `BasicSecureTextField` de Foundation con tokens del tema. Los campos viven en la ruta, la contraseña solo en memoria, sin guardarse en el estado del sistema operativo. El acceso exitoso muestra `PurchasesRoute`, con agencia, usuario y cierre de sesión. La lista usa `LazyColumn`, tarjetas blancas con bordes suaves, estado de firma y botones con iconos para agregar/editar. La selección de compra abre un aviso de la siguiente etapa; aún no captura ni sube imágenes.
+
+`PurchasesRoute` tiene un `ViewModelStore` propio, identificado por usuario/agencia en la raíz y liberado al salir de la sesión. Así no se reutilizan compras/filtros de una cuenta anterior. Los campos de filtro se mantienen en la ruta y la consulta aplicada en `PurchasesUiState`; los cambios pendientes se indican antes de aplicar. Sin filtros de fecha se consulta todo el historial vigente de la agencia.
 
 ## Datos y sesión
 
@@ -80,7 +90,7 @@ El móvil se comunica exclusivamente por HTTP con el backend. No conoce credenci
 
 La pertenencia de una compra se validará en el servidor mediante su caja y la agencia del usuario autenticado. No se debe sustituir esta comprobación por filtros locales ni por la agencia actual del creador de la compra.
 
-Los importes de `compra` son `DECIMAL(12,3)`; al acordar los DTO se conservarán como texto decimal o representación exacta. Las fechas de la web son `datetime` en contexto `America/Managua`; el contrato debe definir explícitamente zona y formato antes de convertirlas a instantes en KMP.
+Los importes de `compra` son `DECIMAL(12,3)` y se conservan como texto decimal, incluso al añadir separadores visuales, sin conversión a coma flotante ni moneda supuesta. Las fechas de la API son ISO 8601 con offset `-06:00`; el listado muestra su día/hora de agencia, sin convertirlos al huso horario del dispositivo.
 
 `SessionStore` tiene implementaciones nativas: Android cifra con AES-GCM usando una clave no exportable de Android Keystore; iOS guarda en Keychain con `WhenUnlockedThisDeviceOnly`. JVM solo mantiene el token en memoria para desarrollo. El servidor conserva únicamente el hash y renueva la sesión hasta 90 días desde el último uso. La contraseña no se persiste.
 
@@ -95,6 +105,7 @@ El backend admite ediciones versionadas de firma y reintentos idempotentes. El t
 - `AppModulesTest` comprueba que Koin puede resolver el cliente real JVM y el serializador compartido.
 - `AuthRepositoryTest` comprueba restauración desde un repositorio recreado, conservación de sesión sin conexión y eliminación ante `401`.
 - `LoginSessionTest` verifica el flujo ViewModel/repositorio con HTTP simulado: restauración al recrear la presentación, agencia actual del servidor, recuperación tras fallo de red, sesión vencida, validación, bloqueo de envíos duplicados y logout sin conexión.
+- `PurchasesFlowTest` verifica Bearer, parámetros autorizados, filtros/paginación, valores nulos, precisión decimal, fechas, reintentos, rechazo de acceso y descarte de respuestas antiguas.
 - `backend/tests/run.php` verifica reglas de agencia, sesiones, firmas versionadas y conflictos en una base local efímera.
 - Ejecutar los tests Android/JVM y `assembleDebug` al modificar la infraestructura compartida.
 - Validar el framework y los tests iOS en macOS cuando ese entorno esté disponible.

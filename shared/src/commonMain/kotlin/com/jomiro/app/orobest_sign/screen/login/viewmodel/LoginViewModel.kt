@@ -18,7 +18,7 @@ class LoginViewModel(private val authRepository: AuthRepository) : StateViewMode
     }
 
     fun restoreSession() {
-        if (operation?.isActive == true || state.value.phase !in setOf(LoginPhase.RestoringSession, LoginPhase.RestoreFailed)) return
+        if (operation?.isActive == true || state.value.phase !in setOf(LoginPhase.RestoringSession, LoginPhase.RestoreFailed, LoginPhase.Authenticated)) return
         updateState { LoginUiState(phase = LoginPhase.RestoringSession) }
         operation = viewModelScope.launch {
             try {

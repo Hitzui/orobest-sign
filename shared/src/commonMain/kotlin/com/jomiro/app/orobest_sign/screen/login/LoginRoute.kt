@@ -6,10 +6,13 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jomiro.app.orobest_sign.screen.login.viewmodel.LoginViewModel
+import com.jomiro.app.orobest_sign.screen.login.uistate.LoginPhase
+import com.jomiro.app.orobest_sign.screen.purchases.PurchasesRoute
 import kotlinx.coroutines.flow.drop
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -30,7 +33,18 @@ fun LoginRoute(viewModel: LoginViewModel = koinViewModel()) {
         if (state.profile != null) password.clearText()
     }
 
-    LoginScreen(
+    val profile = state.profile
+    if (profile != null && state.phase in setOf(LoginPhase.Authenticated, LoginPhase.SigningOut)) {
+        key(profile.userId, profile.agency.id) {
+            PurchasesRoute(
+                profile = profile,
+                signingOut = state.phase == LoginPhase.SigningOut,
+                sessionError = state.errorMessage,
+                onLogout = viewModel::logout,
+                onSessionCheck = viewModel::restoreSession,
+            )
+        }
+    } else LoginScreen(
         state = state,
         username = username,
         password = password,
