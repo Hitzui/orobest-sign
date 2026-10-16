@@ -133,12 +133,16 @@ $logoDataUri = $logoContenido !== false
         <td style="width: 50%; text-align: center; border: none;">
             <div style="margin: 0 auto; text-align: center;">
                 <?php if (!empty($firmaDataUri)): ?>
-                    <img src="<?= $firmaDataUri ?>" alt="Firma del Cliente" style="width: 60mm; height: auto;">
+                    <div style="text-align: center; margin: 0 0 2mm;">
+                        <img src="<?= $firmaDataUri ?>" alt="Firma del Cliente" style="width: 60mm; height: auto;">
+                    </div>
                 <?php else: ?>
-                _________________________________<br>
+                    <div style="margin: 0 0 2mm;">_________________________________</div>
                 <?php endif; ?>
-                Firma del Cliente<br>
-                <?= $fecha ?>
+                <div style="line-height: 1.35;">
+                    Firma del Cliente<br>
+                    <?= $fecha ?>
+                </div>
             </div>
         </td>
     </tr>
