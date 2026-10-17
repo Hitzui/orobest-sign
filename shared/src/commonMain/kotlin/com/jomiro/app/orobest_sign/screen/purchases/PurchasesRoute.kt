@@ -4,14 +4,11 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jomiro.app.orobest_sign.feature.auth.domain.model.SessionProfile
@@ -28,10 +25,9 @@ fun PurchasesRoute(
     sessionError: String?,
     onLogout: () -> Unit,
     onSessionCheck: () -> Unit,
+    owner: ViewModelStoreOwner,
+    onFullscreenChange: (Boolean) -> Unit,
 ) {
-    // Alcance exclusivo de la sesión: no conservar compras/filtros de otra cuenta al salir.
-    val owner = remember { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
-    DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
     val viewModel = koinViewModel<PurchasesViewModel>(viewModelStoreOwner = owner)
     val state by viewModel.state.collectAsStateWithLifecycle()
     val query = rememberTextFieldState()
@@ -40,13 +36,21 @@ fun PurchasesRoute(
     var signatureName by rememberSaveable { mutableStateOf(SignatureFilter.All.name) }
     val signature = SignatureFilter.valueOf(signatureName)
     val listState = rememberLazyListState()
-    LaunchedEffect(state.page, state.filters) { listState.scrollToItem(0) }
+    val resultsKey = "${state.page}:${state.filters}"
+    var previousResultsKey by rememberSaveable { mutableStateOf(resultsKey) }
+    LaunchedEffect(resultsKey) {
+        if (previousResultsKey != resultsKey) {
+            listState.scrollToItem(0)
+            previousResultsKey = resultsKey
+        }
+    }
 
     LaunchedEffect(state.requiresSessionCheck) {
         if (state.requiresSessionCheck) onSessionCheck()
     }
 
     val selected = state.selectedPurchase
+    LaunchedEffect(selected != null) { onFullscreenChange(selected != null) }
     if (selected != null) {
         SignatureRoute(
             purchaseId = selected.id,

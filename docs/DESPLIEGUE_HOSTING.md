@@ -35,15 +35,48 @@ modules/sign/components/SignBearerAuth.php
 modules/sign/controllers/ApiController.php
 modules/sign/controllers/AuthController.php
 modules/sign/controllers/ComprasController.php
+modules/sign/controllers/ClientesController.php
 modules/sign/models/SignApiToken.php
 modules/sign/models/CompraFirma.php
 modules/sign/services/AuthService.php
 modules/sign/services/CompraAccessService.php
 modules/sign/services/FirmaService.php
+modules/sign/services/ClienteDocumentService.php
+services/ClienteDocumentService.php
+services/ClienteDocumentException.php
 modules/sign/migrations/m261015_000038_create_sign_tables.php
 ```
 
 La migración puede conservarse como referencia de versión; subirla no la ejecuta. No es necesario subir `backend/tests`, `backend/tools`, archivos Kotlin, el APK ni el repositorio completo al hosting.
+
+### Actualización de eliminación desde la app
+
+Si ya subiste la primera entrega de clientes, actualiza juntos estos archivos desde `backend/orobest/`:
+
+```text
+config/sign.php
+modules/sign/controllers/ApiController.php
+modules/sign/controllers/ClientesController.php
+modules/sign/services/ClienteDocumentService.php
+services/ClienteDocumentService.php
+services/ClienteDocumentException.php
+```
+
+Los dos últimos son dependencias del servicio compartido entre web y Sign. El endpoint nuevo es `DELETE /api/sign/v1/clientes/{idcliente}/documentos/{idarchivo}`. La app pide confirmación antes de enviarlo; elimina únicamente el adjunto seleccionado y su registro. Esta actualización no requiere migración ni cambios de estructura en la base de datos. Conserva las rutas de almacenamiento personalizadas de tu `config/sign.php` al incorporar la regla nueva.
+
+### Formulario web de clientes y carga múltiple
+
+Actualiza también estos archivos desde `backend/orobest/` para crear/editar clientes, descargar los adjuntos de la app y eliminarlos individualmente desde el formulario o la ficha:
+
+```text
+controllers/ClienteController.php
+models/Cliente.php
+services/ClienteService.php
+views/cliente/_form.php
+views/cliente/view.php
+```
+
+Se añaden hasta 10 documentos nuevos al pulsar **Guardar**, sin reemplazar los existentes aunque tengan el mismo nombre. La web y Sign guardan los nuevos documentos en la misma carpeta privada configurada y siguen leyendo `uploads/clientes/{idcliente}/` para archivos históricos.
 
 ### Actualizar el comprobante
 
@@ -71,22 +104,24 @@ por:
 return \yii\helpers\ArrayHelper::merge($config, require __DIR__ . '/sign.php');
 ```
 
-Este es el único cambio requerido en un archivo PHP preexistente. Conserva tus credenciales y configuración del hosting; no reemplaces todo `config/web.php` con el archivo local.
+Este es el cambio de configuración requerido en `config/web.php`. Conserva tus credenciales y configuración del hosting; no reemplaces todo `config/web.php` con el archivo local.
 
-El fragmento añade el módulo y cuatro reglas específicas `/api/sign/v1`, junto con las reglas existentes de RRHH y otras APIs. No requiere cambios de Composer ni archivos de `vendor`.
+El fragmento añade el módulo y las rutas de autenticación, compras, clientes y documentos bajo `/api/sign/v1`, junto con las reglas existentes de RRHH y otras APIs. No requiere cambios de Composer ni archivos de `vendor`.
 
-## 4. Directorio de imágenes
+## 4. Almacenamiento privado
 
 Opción preferida: en `config/sign.php`, configurar `storagePath` con una ruta absoluta fuera de `public_html` (o definir la variable de entorno `OROBEST_SIGN_STORAGE_PATH`). PHP debe poder crear carpetas y escribir allí.
 
-Si conservas el valor predeterminado, PHP usará `runtime/signatures`. El módulo crea el directorio y un `.htaccess` que deniega el acceso directo. La entrega de PNG se hace por el controlador autenticado. Respaldar ese directorio junto con la tabla `compra_firma`; sincronizar esquemas no copia imágenes.
+Configura también `clientDocumentsStoragePath` con una ruta absoluta privada para los archivos de clientes o define `OROBEST_CLIENT_DOCUMENTS_PATH`. Las fotos de cédula y PDFs son datos personales; no los guardes en una carpeta pública. El valor predeterminado es `runtime/client-documents` y se protege con denegación Apache, pero es preferible configurar una carpeta fuera de `public_html`.
+
+Si conservas los valores predeterminados, PHP usará `runtime/signatures` y `runtime/client-documents`. El módulo crea los directorios y un `.htaccess` que deniega el acceso directo. La entrega de PNG y documentos se hace por controladores autenticados. Respaldar ambos directorios, junto con `compra_firma` y los registros existentes de `documentos`/`archivos_clientes`; sincronizar esquemas no copia archivos.
 
 El dominio por sí solo no permite conocer la raíz pública del hosting. Las rutas de API están previstas para la aplicación publicada en `https://orobestni.com/`; si realmente está dentro de una subcarpeta, hay que incluir ese prefijo en `ApiConfig` del móvil.
 
 ## 5. Requisitos de la carga
 
-- PHP 8.1+ con `gd`, `fileinfo`, PDO MySQL y las extensiones que ya usa Yii.
-- `upload_max_filesize` de al menos `2M`; `post_max_size` mayor que el archivo más el multipart, por ejemplo `4M` o superior.
+- PHP 8.1+ con `gd`, `fileinfo`, `zip`, PDO MySQL y las extensiones que ya usa Yii.
+- `upload_max_filesize` de al menos `10M`, `max_file_uploads` de al menos `10` y `post_max_size = 128M` para admitir un lote web completo de 10 archivos de 10 MiB más el multipart. El límite HTTP del hosting también debe admitir ese total. La app envía cada documento por separado.
 - El servidor debe pasar el encabezado `Authorization` a PHP. No se cambia `.htaccess` de toda la web anticipadamente: se verifica con una petición autenticada después de subir.
 
 ## 6. Verificar después de subir
@@ -97,7 +132,7 @@ Sin sesión, esta URL debe devolver **401 y JSON**, no una página de login:
 https://orobestni.com/api/sign/v1/auth/me
 ```
 
-Después verificar login, `me` tras reiniciar el móvil, compras de la agencia completa, rechazo de una compra de otra sucursal, carga y edición de una firma, y logout. Los ejemplos completos de campos y respuestas están en [PROPUESTA_API.md](PROPUESTA_API.md).
+Después verificar login, `me` tras reiniciar el móvil, compras de la agencia completa, rechazo de una compra de otra sucursal, carga y edición de una firma, búsqueda de clientes, carga/listado/descarga autenticada de documentos, y logout. Los ejemplos completos de campos y respuestas están en [PROPUESTA_API.md](PROPUESTA_API.md).
 
 El comprobante PDF muestra la firma debajo de TOTALES, conservando la proporción PNG y la fecha del comprobante. Esta parte requiere subir los dos archivos web indicados arriba; la API y la impresión leen las firmas existentes sin migraciones adicionales.
 

@@ -1,16 +1,18 @@
 # OroBest Sign
 
-Aplicación **Kotlin Multiplatform (KMP)** complementaria al sistema web OroBest. Su objetivo es capturar la firma del cliente en el móvil, convertirla en imagen y asociarla a una compra mediante **`idcompra`**.
+Aplicación **Kotlin Multiplatform (KMP)** complementaria al sistema web OroBest. Permite gestionar firmas de compras y consultar clientes con sus documentos desde Android, iOS y escritorio.
 
 Repositorio: <https://github.com/Hitzui/orobest-sign>
 
 ## Estado actual
 
-Base KMP preparada con DI, MVVM, cliente HTTP, serialización y Composables UI/Lucide. El backend Sign v1 está implementado y migrado **localmente**, con acceso por agencia, sesión persistente y edición versionada de firmas.
+Base KMP con DI, MVVM, cliente HTTP, serialización y Composables UI/Lucide. El backend Sign v1 está implementado y migrado **localmente**, con sesión persistente, compras por agencia y firmas versionadas. El módulo de clientes agrega un listado global paginado y búsqueda, más carga autenticada de fotos de cédula frente/reverso, imágenes y PDF; reutiliza las tablas existentes `documentos` y `archivos_clientes`.
 
-La entrada `App` inicializa Koin, el tema y el **login con sesión persistente**. Al abrir la app se restaura la sesión guardada consultando el servidor; si no hay sesión válida se muestra el formulario. Después del acceso se muestra la **lista paginada de compras de la agencia**, con filtros y acciones de firma. La captura abre una pantalla completa, exporta PNG y lo sube a la API, con edición versionada y reintentos idempotentes. El éxito se muestra únicamente cuando el servidor confirma el guardado.
+La entrada `App` inicializa Koin, el tema y el **login con sesión persistente**. Después del acceso, la barra inferior **Compras | Clientes** permite cambiar entre las compras paginadas con filtros y firma, y los clientes con sus documentos. La captura y las cargas envían sus archivos al backend autenticado; las operaciones pendientes se conservan en memoria para permitir reintentos.
 
-Dominio aprobado: `https://orobestni.com/`. El propietario subirá los archivos y sincronizará únicamente las dos tablas nuevas: [instrucciones de hosting](docs/DESPLIEGUE_HOSTING.md).
+Clientes permite seleccionar hasta **10 documentos** con una sola acción, añadirlos sin reemplazar los anteriores y eliminarlos individualmente con confirmación. Web y app comparten almacenamiento y lectura de JPG/PNG, PDF, DOC, DOCX y TXT, incluidos los adjuntos históricos. El lote móvil se envía secuencialmente y reintenta únicamente los archivos pendientes.
+
+Dominio aprobado: `https://orobestni.com/`. El propietario sube los archivos al hosting. Las migraciones de Sign solo crean `sign_api_token` y `compra_firma`; el módulo de clientes reutiliza el esquema existente. Ver [instrucciones de hosting](docs/DESPLIEGUE_HOSTING.md).
 
 Paleta visual aprobada e integrada en el tema compartido: **`#ABBCDA` · `#FFFFFF` · `#415D8A` · `#D0E1F5`**. Ver [colores y usos](docs/PALETA.md).
 
@@ -139,6 +141,18 @@ C:\xampp\php\php.exe backend\tests\run.php C:\xampp\htdocs\orobest
 ```
 
 En macOS/Linux se usa `./gradlew`; para iOS abrir `iosApp/iosApp.xcodeproj`. Las comprobaciones Android/JVM no sustituyen una compilación iOS en macOS.
+
+### APK Android y actualización
+
+La entrega actual usa **versión 1.2 / código 3** y mantiene el identificador `com.jomiro.app.orobest_sign`. Para actualizar una instalación anterior sin desinstalar, el APK debe conservar ese identificador y firmarse con la misma keystore y alias del APK instalado. En cada entrega posterior se debe incrementar `versionCode`.
+
+La tarea Gradle para compilar release es:
+
+```powershell
+.\gradlew.bat :androidApp:assembleRelease
+```
+
+Actualmente no hay una configuración de firma release en Gradle: esta tarea genera `androidApp/build/outputs/apk/release/androidApp-release-unsigned.apk`, que debe firmarse antes de instalarse. Para generar directamente el APK firmado desde Android Studio, usa **Build → Generate Signed App Bundle / APK → APK**, selecciona la misma keystore y alias anteriores y elige **release**. Una actualización compatible conserva los datos locales de la app, incluida la sesión almacenada; su vigencia sigue dependiendo del servidor.
 
 Verificación del 15 de octubre de 2026 en Windows: tests JVM/Android y APK debug correctos; 36 comprobaciones PHP de integración correctas, incluyendo aislamiento de agencias, sesión, carga, edición, historial y reintentos. iOS/Keychain quedan pendientes de compilación y verificación en macOS. El almacenamiento Android requiere además validación en un dispositivo/emulador con Keystore.
 

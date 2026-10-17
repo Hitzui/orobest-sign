@@ -29,7 +29,7 @@ function rejects(callable $operation, string $code): void
 {
     try {
         $operation();
-    } catch (app\modules\sign\components\ApiException $e) {
+    } catch (app\modules\sign\components\ApiException|app\services\ClienteDocumentException $e) {
         check($e->errorCode === $code, $code);
         return;
     }
@@ -57,6 +57,7 @@ try {
     $config['dsn'] = preg_replace('/dbname=[^;]+/', 'dbname=' . $database, $config['dsn']);
     $sign = require dirname(__DIR__) . '/orobest/config/sign.php';
     $sign['modules']['sign']['storagePath'] = $storage;
+    $sign['modules']['sign']['clientDocumentsStoragePath'] = $storage . '-clients';
     $app = new yii\web\Application(yii\helpers\ArrayHelper::merge([
         'id' => 'sign-integration', 'basePath' => $webRoot, 'vendorPath' => $webRoot . '/vendor',
         'components' => [
@@ -71,7 +72,9 @@ try {
         'CREATE TABLE agencia (idagencia INT PRIMARY KEY, codagencia VARCHAR(10), descripcion VARCHAR(150), activo TINYINT NOT NULL) ENGINE=InnoDB',
         'CREATE TABLE caja (idcaja INT PRIMARY KEY, idagencia INT, activo TINYINT) ENGINE=InnoDB',
         'CREATE TABLE usuario (idusuario INT PRIMARY KEY, username VARCHAR(255), nombre VARCHAR(255), password VARCHAR(255), activo BIT(1) NOT NULL, idagencia INT, idcaja INT) ENGINE=InnoDB',
-        'CREATE TABLE cliente (idcliente INT PRIMARY KEY, nombres VARCHAR(255), apellidos VARCHAR(255)) ENGINE=InnoDB',
+        'CREATE TABLE cliente (idcliente INT PRIMARY KEY, nombres VARCHAR(255), apellidos VARCHAR(255), cedula VARCHAR(14), telefono VARCHAR(20), celular VARCHAR(20)) ENGINE=InnoDB',
+        'CREATE TABLE documentos (id INT PRIMARY KEY AUTO_INCREMENT, titulo VARCHAR(255), archivos TEXT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, idcliente INT NULL, updated_at DATETIME NULL) ENGINE=InnoDB',
+        'CREATE TABLE archivos_clientes (idarchivo INT PRIMARY KEY AUTO_INCREMENT, iddocumento INT NULL, nombre_original TEXT NOT NULL, ruta TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, tipo VARCHAR(255) NULL, size INT NULL) ENGINE=InnoDB',
         'CREATE TABLE compra (idcompra INT PRIMARY KEY, numcompra VARCHAR(255), fecha DATETIME, idcaja INT, estado INT, idusuario INT, idcliente INT, forma_pago VARCHAR(255), efectivo DECIMAL(12,3), transferencia DECIMAL(12,3), adelanto DECIMAL(12,3), total DECIMAL(12,3), subtotal DECIMAL(12,3), descuento DECIMAL(12,3), updated_at DATETIME) ENGINE=InnoDB',
         'CREATE TABLE deta_compra (iddetacompra INT PRIMARY KEY, idcompra INT, linea INT, descripcion TEXT, kilataje VARCHAR(255), kilate DECIMAL(12,3), precio DECIMAL(12,3), peso DECIMAL(12,3), importe DECIMAL(12,3), lectura INT) ENGINE=InnoDB',
     ] as $sql) {
@@ -86,6 +89,10 @@ try {
         [1, 'cashier', 'Caja sintética', $password, 1, 1, 1], [2, 'other', 'Otra cuenta', $password, 1, 2, 3],
         [3, 'inactive', 'Inactiva', $password, 0, 1, 1],
         [4, 'duplicate', 'Duplicada A', $password, 1, 1, 1], [5, 'duplicate', 'Duplicada B', $password, 1, 1, 1],
+    ])->execute();
+    $db->createCommand()->insert('cliente', [
+        'idcliente' => 1, 'nombres' => 'Cliente Sintético', 'apellidos' => 'Prueba',
+        'cedula' => '0010101010011A', 'telefono' => '00000000', 'celular' => null,
     ])->execute();
     foreach ([[1, 1, 1, 1], [2, 2, 1, 2], [3, 3, 1, 2], [4, 1, 0, 1]] as [$id, $cashbox, $state, $creator]) {
         $db->createCommand()->insert('compra', [
@@ -115,12 +122,22 @@ try {
     rejects(fn () => $access->listing(1, ['idagencia' => 2]), 'scope_not_selectable');
     rejects(fn () => $access->listing(1, ['desde' => '2026-02-31']), 'invalid_date');
     $service = new app\modules\sign\services\FirmaService($module);
+    $clientDocuments = new app\modules\sign\services\ClienteDocumentService($module);
+    $clientPage = $clientDocuments->listing(['q' => 'Sintético']);
+    check($clientPage['pagination']['total'] === 1 && $clientPage['items'][0]['idcliente'] === 1, 'búsqueda paginada de clientes');
     $image = imagecreatetruecolor(120, 60);
     imagefill($image, 0, 0, imagecolorallocate($image, 255, 255, 255));
     imageline($image, 5, 5, 100, 50, imagecolorallocate($image, 0, 0, 0));
     imagepng($image, $storage . '.png');
     imagedestroy($image);
     $png = $storage . '.png';
+    $documentUpload = $clientDocuments->save(1, 'cedula_frente', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'cedula.png', $png);
+    check(!$documentUpload['replayed'] && $documentUpload['documento']['tipo_documento'] === 'cedula_frente', 'subida privada del frente de cédula');
+    $documentRetry = $clientDocuments->save(1, 'cedula_frente', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'cedula.png', $png);
+    check($documentRetry['replayed'] && $documentRetry['documento']['idarchivo'] === $documentUpload['documento']['idarchivo'], 'reintento de documento idempotente');
+    [$documentPath, $documentMime] = $clientDocuments->image(1, $documentUpload['documento']['idarchivo']);
+    check(is_file($documentPath) && $documentMime === 'image/png', 'descarga privada del documento por cliente');
+    check(count($clientDocuments->documents(1)['items']) === 1, 'listado de documentos asociados al cliente');
     $params = ['operation_id' => '11111111-1111-4111-8111-111111111111', 'compra_revision' => $access->detail(1, 1)['revision'], 'base_version' => 0];
     $first = $service->save(1, 1, 1, $params, $png);
     check($first['firma']['version'] === 1 && !$first['replayed'], 'primera firma');
@@ -150,6 +167,96 @@ try {
     $httpToken = $result['data']['access_token'];
     $result = api('sign/auth/me', 'GET', $httpToken);
     check($result['data']['agencia']['idagencia'] === 1, 'perfil autenticado HTTP');
+    $result = api('sign/clientes/index', 'GET', $httpToken, [], ['q' => 'Sintético']);
+    check($result['data']['pagination']['total'] === 1 && $result['data']['items'][0]['idcliente'] === 1, 'listado de clientes autenticado HTTP');
+    $result = api('sign/clientes/documentos', 'GET', $httpToken, [], ['idcliente' => 1]);
+    check(count($result['data']['items']) === 1, 'listado de documentos autenticado HTTP');
+    $_FILES = ['archivo' => ['name' => 'cedula.png', 'type' => 'image/png', 'tmp_name' => $png, 'error' => UPLOAD_ERR_OK, 'size' => filesize($png)]];
+    yii\web\UploadedFile::reset();
+    $result = api('sign/clientes/documentos', 'POST', $httpToken, [
+        'tipo_documento' => 'cedula_reverso',
+        'operation_id' => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        'nombre' => 'reverso.png',
+    ], ['idcliente' => 1]);
+    check($result['data']['documento']['tipo_documento'] === 'cedula_reverso', 'carga de documento mediante controlador autenticado');
+    $clientFileId = $result['data']['documento']['idarchivo'];
+    $binary = api('sign/clientes/contenido', 'GET', $httpToken, [], ['idcliente' => 1, 'idarchivo' => $clientFileId]);
+    check($binary instanceof yii\web\Response && $binary->headers->get('Content-Type') === 'image/png', 'descarga de documento autenticada');
+    if (is_array($binary->stream) && is_resource($binary->stream[0])) {
+        fclose($binary->stream[0]);
+    }
+    // Flujo web: lote, nombres repetidos, lectura desde Sign y rollback del cliente.
+    $sharedDocuments = new app\services\ClienteDocumentService($module->clientDocumentsStoragePath);
+    $syntheticClient = app\models\Cliente::findOne(1);
+    $upload = new yii\web\UploadedFile(['name' => 'mismo-nombre.png', 'tempName' => $png, 'type' => 'image/png', 'size' => filesize($png), 'error' => UPLOAD_ERR_OK]);
+    $before = count($sharedDocuments->files(1));
+    $sharedDocuments->saveUploads($syntheticClient, [$upload, $upload]);
+    $files = $sharedDocuments->files(1);
+    check(count($files) === $before + 2 && $files[0]->ruta !== $files[1]->ruta, 'lote web conserva dos documentos con el mismo nombre sin sobrescribir');
+    [$webPath] = $clientDocuments->image(1, (int) $files[0]->idarchivo);
+    check(is_file($webPath), 'Sign abre documentos creados desde la web');
+    [$appPath] = $sharedDocuments->image(1, (int) $clientFileId);
+    check(is_file($appPath), 'web abre documentos creados desde Sign');
+    $outer = $db->beginTransaction();
+    $sharedDocuments->saveUploads($syntheticClient, [$upload, $upload]);
+    $rolledBack = array_slice($sharedDocuments->files(1), 0, 2);
+    $rolledBackPaths = array_map(fn ($file) => $sharedDocuments->image(1, (int) $file->idarchivo)[0], $rolledBack);
+    $outer->rollBack();
+    check(count($sharedDocuments->files(1)) === count($files) && !is_file($rolledBackPaths[0]) && !is_file($rolledBackPaths[1]), 'rollback del cliente elimina también los archivos físicos del lote');
+    $badName = new yii\web\UploadedFile(['name' => str_repeat('a', 250) . '.png', 'tempName' => $png, 'type' => 'image/png', 'size' => filesize($png), 'error' => UPLOAD_ERR_OK]);
+    rejects(fn () => $sharedDocuments->saveUploads($syntheticClient, [$upload, $badName]), 'invalid_document_name');
+    check(count($sharedDocuments->files(1)) === count($files), 'un fallo en el segundo documento revierte el lote completo');
+    rejects(fn () => $sharedDocuments->saveUploads($syntheticClient, array_fill(0, 11, $upload)), 'too_many_documents');
+    $legacyRoot = $storage . '-legacy';
+    yii\helpers\FileHelper::createDirectory($legacyRoot . '/uploads/clientes/1');
+    copy($png, $legacyRoot . '/uploads/clientes/1/historico.png');
+    $header = new app\models\Documentos(['titulo' => 'Segundo grupo histórico', 'idcliente' => 1]);
+    $header->save(false);
+    $legacy = new app\models\ArchivosClientes(['iddocumento' => $header->id, 'nombre_original' => 'historico.png', 'ruta' => 'uploads/clientes/1/historico.png', 'tipo' => 'png', 'size' => filesize($png)]);
+    $legacy->save(false);
+    Yii::setAlias('@app', $legacyRoot);
+    try {
+        [$legacyPath, $legacyMime] = $sharedDocuments->image(1, (int) $legacy->idarchivo);
+        check(is_file($legacyPath) && $legacyMime === 'image/png', 'lectura de rutas históricas independiente del directorio de ejecución');
+        check(count($sharedDocuments->files(1)) === count($files) + 1, 'listado incluye todos los grupos de documentos del cliente');
+        $sharedDocuments->delete(1, (int) $legacy->idarchivo);
+        check(!is_file($legacyPath), 'eliminación individual de un adjunto histórico');
+    } finally {
+        Yii::setAlias('@app', $webRoot);
+    }
+    $textPath = $storage . '.txt';
+    file_put_contents($textPath, 'Documento de prueba sintético.');
+    $textUpload = $sharedDocuments->save(1, 'otro', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'notas.txt', $textPath);
+    [$savedText, $textMime] = $clientDocuments->image(1, $textUpload['documento']['idarchivo']);
+    check($textMime === 'text/plain' && file_get_contents($savedText) === file_get_contents($textPath), 'TXT compartido entre web y móvil');
+    rejects(fn () => $clientDocuments->save(1, 'cedula_frente', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'cambio.txt', $textPath), 'operation_conflict');
+    $docxPath = $storage . '.docx';
+    $zip = new ZipArchive();
+    $zip->open($docxPath, ZipArchive::CREATE);
+    $zip->addFromString('[Content_Types].xml', '<?xml version="1.0"?><Types/>');
+    $zip->addFromString('word/document.xml', '<?xml version="1.0"?><document/>');
+    $zip->close();
+    $docxUpload = $sharedDocuments->save(1, 'otro', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'documento.docx', $docxPath);
+    [, $docxMime] = $clientDocuments->image(1, $docxUpload['documento']['idarchivo']);
+    check($docxMime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'DOCX se valida por contenido y se entrega con MIME compatible');
+    $deleteParams = ['idcliente' => 1, 'idarchivo' => $clientFileId];
+    api('sign/clientes/eliminar-documento', 'GET', $httpToken, [], $deleteParams);
+    check($app->response->statusCode === 405 && is_file($appPath), 'eliminar documento exige DELETE');
+    api('sign/clientes/eliminar-documento', 'DELETE', null, [], $deleteParams);
+    check($app->response->statusCode === 401 && is_file($appPath), 'eliminar documento exige autenticación');
+    $db->createCommand()->insert('cliente', ['idcliente' => 2, 'nombres' => 'Otro Cliente', 'apellidos' => 'Sintético'])->execute();
+    api('sign/clientes/eliminar-documento', 'DELETE', $httpToken, [], ['idcliente' => 2, 'idarchivo' => $clientFileId]);
+    check(is_file($appPath) && app\models\ArchivosClientes::findOne($clientFileId) !== null, 'DELETE no elimina un archivo vinculado a otro cliente');
+    $deleted = api('sign/clientes/eliminar-documento', 'DELETE', $httpToken, [], $deleteParams);
+    check($deleted['data']['deleted'] && !is_file($appPath) && is_file($webPath), 'eliminación desde la app conserva los otros documentos');
+    $deleted = api('sign/clientes/eliminar-documento', 'DELETE', $httpToken, [], $deleteParams);
+    check($deleted['data']['deleted'], 'reintentar eliminación no afecta otros documentos');
+    $missing = $clientDocuments->save(1, 'otro', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'faltante.png', $png);
+    $missingId = $missing['documento']['idarchivo'];
+    [$missingPath] = $clientDocuments->image(1, $missingId);
+    unlink($missingPath);
+    $clientDocuments->delete(1, $missingId);
+    check(app\models\ArchivosClientes::findOne($missingId) === null, 'eliminar permite limpiar registros cuyo archivo físico ya falta');
     $result = api('sign/auth/login', 'GET', null);
     check($app->response->statusCode === 405, 'login rechaza método incorrecto');
     $result = api('sign/compras/index', 'GET', $httpToken);
@@ -190,7 +297,14 @@ try {
     if (is_dir($storage)) {
         yii\helpers\FileHelper::removeDirectory($storage);
     }
+    if (is_dir($storage . '-clients')) {
+        yii\helpers\FileHelper::removeDirectory($storage . '-clients');
+    }
     if (is_file($storage . '.png')) {
         unlink($storage . '.png');
     }
+    foreach (['.txt', '.docx'] as $extension) {
+        if (is_file($storage . $extension)) unlink($storage . $extension);
+    }
+    if (is_dir($storage . '-legacy')) yii\helpers\FileHelper::removeDirectory($storage . '-legacy');
 }

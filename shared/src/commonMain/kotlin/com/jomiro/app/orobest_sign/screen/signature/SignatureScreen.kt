@@ -56,18 +56,46 @@ fun SignatureScreen(
     onClear: () -> Unit, onTogglePrevious: () -> Unit, onSave: () -> Unit, onExit: () -> Unit,
     onReload: () -> Unit, onDismissConfirmation: () -> Unit, onConfirmDiscard: () -> Unit,
 ) {
-    val image = remember(state.previousPng) { state.previousPng?.let { runCatching { decodeSignaturePng(it) }.getOrNull() } }
-    BoxWithConstraints(Modifier.fillMaxSize().background(Theme[colors][backgroundColor]).windowInsetsPadding(WindowInsets.safeDrawing)) {
+    val image =
+        remember(state.previousPng) { state.previousPng?.let { runCatching { decodeSignaturePng(it) }.getOrNull() } }
+    BoxWithConstraints(
+        Modifier.fillMaxSize().background(Theme[colors][backgroundColor])
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+    ) {
         val turned = maxHeight > maxWidth
         SidewaysSignatureLayout(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(
+                Modifier.fillMaxSize().padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("${if ((state.purchase?.baseVersion ?: 0) > 0) "Editar" else "Agregar"} firma · ${state.purchase?.number ?: "Compra"}", fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(state.purchase?.customer?.takeIf { it.isNotBlank() } ?: "Cliente no registrado", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            "${if ((state.purchase?.baseVersion ?: 0) > 0) "Editar" else "Agregar"} firma · ${state.purchase?.number ?: "Compra"}",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(state.purchase?.customer?.takeIf { it.isNotBlank() }
+                            ?: "Cliente no registrado",
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis)
                     }
-                    if (state.previousPng != null) Button(onClick = onTogglePrevious, enabled = !state.saving && !state.retryPending, style = ButtonStyle.Outlined) {
-                        Text(if (state.showPrevious) "Capturar nueva" else "Ver anterior", fontSize = 12.sp)
+                    if (state.previousPng != null) Button(
+                        onClick = onTogglePrevious,
+                        enabled = !state.saving && !state.retryPending,
+                        style = ButtonStyle.Outlined
+                    ) {
+                        Text(
+                            if (state.showPrevious) "Capturar nueva" else "Ver anterior",
+                            fontSize = 12.sp
+                        )
                     }
                 }
                 if (state.loading || state.saving) IndeterminateProgressIndicator(Modifier.fillMaxWidth())
@@ -80,26 +108,68 @@ fun SignatureScreen(
                     state.purchase?.purchaseModified == true -> "La compra cambió desde la firma anterior. Se guardará una nueva versión."
                     else -> "Teléfono de lado, parte superior hacia la izquierda · Firma dentro del recuadro."
                 }
-                Text(message, Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite }, fontSize = 12.sp, lineHeight = 16.sp)
+                Text(
+                    message,
+                    Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp
+                )
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     if (state.showPrevious && image != null) {
-                        Image(image, "Firma anterior de esta compra", Modifier.fillMaxSize().background(Color.White), contentScale = ContentScale.Fit)
+                        Image(
+                            image,
+                            "Firma anterior de esta compra",
+                            Modifier.fillMaxSize().background(Color.White),
+                            contentScale = ContentScale.Fit
+                        )
                     } else if (state.showPrevious) {
-                        Text("No se pudo mostrar la firma anterior. Pulsa Capturar nueva para firmar.", fontSize = 14.sp)
+                        Text(
+                            "No se pudo mostrar la firma anterior. Pulsa Capturar nueva para firmar.",
+                            fontSize = 14.sp
+                        )
                     } else {
-                        SignatureCanvas(state.strokes, state.canDraw, Modifier.aspectRatio(2f, matchHeightConstraintsFirst = true), onBegin, onPoint, onEnd)
+                        SignatureCanvas(
+                            state.strokes,
+                            state.canDraw,
+                            Modifier.aspectRatio(2f, matchHeightConstraintsFirst = true),
+                            onBegin,
+                            onPoint,
+                            onEnd
+                        )
                     }
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Button(onClick = onExit, enabled = !state.saving, style = ButtonStyle.Outlined) { Text("Cancelar") }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = onExit,
+                        enabled = !state.saving,
+                        style = ButtonStyle.Outlined
+                    ) { Text("Cancelar") }
                     if (state.needsReload || (state.purchase == null && !state.loading)) {
-                        Button(onClick = onReload, enabled = !state.saving && !state.loading && !state.requiresSessionCheck, modifier = Modifier.weight(1f), style = ButtonStyle.Primary) { Text("Recargar compra") }
+                        Button(
+                            onClick = onReload,
+                            enabled = !state.saving && !state.loading && !state.requiresSessionCheck,
+                            modifier = Modifier.weight(1f),
+                            style = ButtonStyle.Primary
+                        ) { Text("Recargar compra") }
                     } else {
-                        Button(onClick = onClear, enabled = state.canDraw && state.hasInk && !state.strokeActive, style = ButtonStyle.Outlined) {
+                        Button(
+                            onClick = onClear,
+                            enabled = state.canDraw && state.hasInk && !state.strokeActive,
+                            style = ButtonStyle.Outlined
+                        ) {
                             Icon(Lucide.Eraser, Modifier.size(18.dp))
                             Text("Limpiar")
                         }
-                        Button(onClick = onSave, enabled = state.canSave, modifier = Modifier.weight(1f), style = ButtonStyle.Primary) {
+                        Button(
+                            onClick = onSave,
+                            enabled = state.canSave,
+                            modifier = Modifier.weight(1f),
+                            style = ButtonStyle.Primary
+                        ) {
                             Icon(Lucide.Save, Modifier.size(18.dp))
                             Text(if (state.saving) "Guardando…" else if (state.retryPending) "Reintentar guardado" else "Guardar firma")
                         }
@@ -112,13 +182,29 @@ fun SignatureScreen(
             onDismissRequest = onDismissConfirmation,
             modifier = Modifier.sidewaysDialog(turned),
             title = { Text(if (state.confirmation == SignatureConfirmation.Reload) "¿Recargar la compra?" else "¿Salir de la firma?") },
-            text = { Text(when {
-                state.retryPending -> "El envío no está confirmado. Puedes reintentarlo sin duplicados antes de salir. Si sales, consulta la compra para comprobar si se guardó."
-                state.confirmation == SignatureConfirmation.Reload -> "Se descartarán estos trazos y se consultarán los datos y la versión actuales antes de volver a firmar."
-                else -> "Los trazos que aún no hayas guardado se perderán."
-            }, fontSize = 14.sp) },
-            positiveButton = { Button(onClick = onDismissConfirmation, modifier = Modifier.fillMaxWidth(), style = ButtonStyle.Primary) { Text("Seguir aquí") } },
-            negativeButton = { Button(onClick = onConfirmDiscard, modifier = Modifier.fillMaxWidth(), style = ButtonStyle.Outlined) { Text(if (state.confirmation == SignatureConfirmation.Reload) "Recargar y descartar trazos" else "Salir") } },
+            text = {
+                Text(
+                    when {
+                        state.retryPending -> "El envío no está confirmado. Puedes reintentarlo sin duplicados antes de salir. Si sales, consulta la compra para comprobar si se guardó."
+                        state.confirmation == SignatureConfirmation.Reload -> "Se descartarán estos trazos y se consultarán los datos y la versión actuales antes de volver a firmar."
+                        else -> "Los trazos que aún no hayas guardado se perderán."
+                    }, fontSize = 14.sp
+                )
+            },
+            positiveButton = {
+                Button(
+                    onClick = onDismissConfirmation,
+                    modifier = Modifier.fillMaxWidth(),
+                    style = ButtonStyle.Primary
+                ) { Text("Seguir aquí") }
+            },
+            negativeButton = {
+                Button(
+                    onClick = onConfirmDiscard,
+                    modifier = Modifier.fillMaxWidth(),
+                    style = ButtonStyle.Outlined
+                ) { Text(if (state.confirmation == SignatureConfirmation.Reload) "Recargar y descartar trazos" else "Salir") }
+            },
         )
     }
 }

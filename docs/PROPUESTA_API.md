@@ -30,6 +30,28 @@ Todas bajo `/api/sign/v1`, con `Accept: application/json`. Salvo login, requiere
 | POST | `compras/{idcompra}/firma` | Crear o editar firma mediante nueva versión |
 | GET | `compras/{idcompra}/firma` | Imagen actual autorizada |
 | GET | `compras/{idcompra}/firma?version=N` | Imagen de una versión anterior |
+| GET | `clientes?page=1&page_size=20&q=` | Listado paginado y búsqueda de todos los clientes |
+| GET | `clientes/{idcliente}` | Datos mínimos de un cliente |
+| GET | `clientes/{idcliente}/documentos` | Metadatos de documentos adjuntos |
+| POST | `clientes/{idcliente}/documentos` | Subir JPG/PNG, PDF, DOC, DOCX o TXT mediante multipart |
+| GET | `clientes/{idcliente}/documentos/{idarchivo}/contenido` | Obtener el archivo privado con Bearer |
+| DELETE | `clientes/{idcliente}/documentos/{idarchivo}` | Eliminar un adjunto del cliente con Bearer |
+
+El alcance de clientes es global por decisión del propietario: cualquier usuario autenticado en Sign puede buscar todos los clientes. La lista expone únicamente ID, nombres, apellidos, cédula, teléfono y celular. No se filtra por agencia porque `cliente` no tiene una relación directa con ella.
+
+La carga acepta `archivo` (JPG/PNG/PDF/DOC/DOCX/TXT, máximo 10 MiB), `tipo_documento` (`cedula_frente`, `cedula_reverso` o `otro`), `operation_id` (UUID) y `nombre` para documentos de tipo `otro`. Para frente/reverso el servidor asigna los nombres correspondientes. El cliente conserva el UUID y los bytes cuando reintenta una carga de resultado incierto.
+
+La API reutiliza `documentos` y `archivos_clientes` sin modificar su esquema. Los metadatos históricos se muestran como `otro`; la categoría de archivos nuevos se obtiene de su ruta privada. Los archivos nuevos se almacenan en `OROBEST_CLIENT_DOCUMENTS_PATH` o, por defecto, `runtime/client-documents`, con nombres no predecibles y acceso solo mediante el endpoint autenticado. Configura la ruta preferentemente fuera de la carpeta pública.
+
+En KMP, la pantalla compartida permite seleccionar hasta 10 archivos y subirlos con una sola acción. Cada archivo usa su propia operación idempotente: el lote se envía secuencialmente, conserva los ya confirmados y reintenta desde el primer archivo pendiente con el mismo UUID y bytes. Android implementa cámara, galería múltiple y selector múltiple de documentos; iOS implementa cámara/fototeca y selector múltiple de archivos; JVM permite selección múltiple desde el explorador. Los archivos pendientes viven en memoria.
+
+La web usa el mismo servicio desde `create` y `update`, mediante `_form.php` con multipart. Guarda hasta 10 documentos nuevos junto con el cliente en una transacción: si un archivo falla, revierte el lote y limpia los archivos físicos nuevos. Cada adjunto tiene una ruta UUID exclusiva; repetir el nombre original no reemplaza documentos anteriores. Los listados incluyen todos los registros de `documentos` del cliente, incluidos grupos históricos.
+
+El listado muestra todos los archivos de cada categoría con botón **Ver**, o indica que no están disponibles si falta el archivo físico. La app consulta `contenido` con Bearer para mostrar imágenes con zoom y PDF (paginados dentro de Android, PDFKit en iOS y lector del sistema en escritorio). Los documentos anteriores de `uploads/clientes/{idcliente}/` se listan como **Otros documentos** y no requieren moverlos a `runtime`; deben existir el registro y el archivo físico correspondiente. No se construyen enlaces públicos ni se transmite el token al lector externo.
+
+TXT se muestra dentro de la app. DOC/DOCX se abre con una aplicación compatible en Android/escritorio y con el visor WebKit en iOS; la integración iOS requiere verificación en macOS/dispositivo. La web descarga cualquiera de los formatos conservando el nombre original.
+
+Cada adjunto ofrece **Eliminar** con confirmación de Composables UI. La app solo lo retira del listado después de recibir `data.deleted = true`; si la conexión falla, conserva el listado y permite actualizar antes de reintentar. El servidor elimina el registro de `archivos_clientes` y su archivo físico (histórico o privado), sin eliminar el cliente ni los demás adjuntos. El ID del archivo se consulta dentro de los documentos del cliente indicado; una repetición de DELETE sobre un ID ya ausente es inocua. La eliminación requiere Bearer y método DELETE, usando el mismo acceso global de clientes. Web y Sign comparten el servicio `app\services\ClienteDocumentService`, adaptado desde el módulo Sign; subir los PHP no ejecuta eliminaciones ni modifica el esquema.
 
 ## Respuestas de sesión
 
@@ -115,4 +137,4 @@ Estados: `401` sesión/credenciales, `403` agencia, `404` recurso fuera de alcan
 - `sign_api_token`: token hasheado, usuario, creación, último uso, expiración y revocación.
 - `compra_firma`: versiones por compra, autor/agencia de captura, operación idempotente, revisión de compra, metadatos y ubicación interna del PNG.
 
-Solo se añaden estas dos tablas, sus índices y FK. La migración aislada es `modules/sign/migrations/m261015_000038_create_sign_tables.php`. El esquema previo de `usuario`, `agencia`, `caja` y `compra` se comprobó antes/después de la ejecución local.
+La migración de Sign añade únicamente estas dos tablas, sus índices y FK. La API de clientes reutiliza `documentos` y `archivos_clientes` sin cambios de esquema. La migración aislada es `modules/sign/migrations/m261015_000038_create_sign_tables.php`. El esquema previo de `usuario`, `agencia`, `caja`, `compra` y las tablas documentales no se modifica.

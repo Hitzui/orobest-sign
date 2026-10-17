@@ -7,6 +7,7 @@ import com.jomiro.app.orobest_sign.core.network.ApiConfig
 import com.jomiro.app.orobest_sign.feature.auth.data.remote.AuthApi
 import com.jomiro.app.orobest_sign.feature.auth.data.repository.DefaultAuthRepository
 import com.jomiro.app.orobest_sign.feature.auth.domain.repository.AuthRepository
+import com.jomiro.app.orobest_sign.feature.clients.di.clientsModule
 import com.jomiro.app.orobest_sign.screen.login.di.loginModule
 import com.jomiro.app.orobest_sign.screen.purchases.di.purchasesModule
 import com.jomiro.app.orobest_sign.screen.signature.di.signatureModule
@@ -29,4 +30,4 @@ private val authModule = module {
     single<AuthRepository> { DefaultAuthRepository(get(), get()) }
 }
 
-val appModules = listOf(networkModule, platformModule, authModule, loginModule, purchasesModule, signatureModule)
+val appModules = listOf(networkModule, platformModule, authModule, loginModule, purchasesModule, signatureModule, clientsModule)

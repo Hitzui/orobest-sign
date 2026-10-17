@@ -12,7 +12,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jomiro.app.orobest_sign.screen.login.viewmodel.LoginViewModel
 import com.jomiro.app.orobest_sign.screen.login.uistate.LoginPhase
-import com.jomiro.app.orobest_sign.screen.purchases.PurchasesRoute
+import com.jomiro.app.orobest_sign.screen.home.HomeRoute
 import kotlinx.coroutines.flow.drop
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -36,7 +36,7 @@ fun LoginRoute(viewModel: LoginViewModel = koinViewModel()) {
     val profile = state.profile
     if (profile != null && state.phase in setOf(LoginPhase.Authenticated, LoginPhase.SigningOut)) {
         key(profile.userId, profile.agency.id) {
-            PurchasesRoute(
+            HomeRoute(
                 profile = profile,
                 signingOut = state.phase == LoginPhase.SigningOut,
                 sessionError = state.errorMessage,

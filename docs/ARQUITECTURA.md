@@ -42,6 +42,20 @@ screen/signature/
   uistate/SignatureUiState.kt
   viewmodel/SignatureViewModel.kt
   di/SignatureModule.kt          Repositorio, exportador y ViewModel
+
+feature/clients/
+  domain/model/                   Cliente y documentos, independientes del JSON
+  domain/repository/              Contrato de listado y carga documental
+  data/remote/                    API Sign de clientes con búsqueda y multipart
+  data/repository/                Implementación ligada a SessionStore
+  di/                             Registro de API, repositorio y ViewModel
+
+screen/clients/
+  ClientsRoute.kt                 Navegación de listado a documentos
+  ClientDocumentPicker.kt         Contrato común para cámara y selectores
+  ClientDocumentPreview.kt        Descarga, visor de imágenes con zoom y PDF nativo
+  uistate/ClientsUiState.kt       Estado de consulta, carga y reintento
+  viewmodel/ClientsViewModel.kt   Búsqueda, documentos y errores de sesión
 ```
 
 Estas subcapas se crearán con código real al implementar cada funcionalidad. Evitar repositorios ficticios, DTO anticipados y casos de uso que solo reenvían llamadas sin aportar una regla.
@@ -53,7 +67,7 @@ Dependencias: `presentation → domain ← data`. `domain` no importa Ktor, Koin
 - Koin inicia en `App` mediante `KoinApplication`, ligado al ciclo de vida de la composición.
 - `core/di/AppModules.kt` registra JSON, motor HTTP y cliente como singletons.
 - Tanto el cliente como el motor se liberan al cerrar el contenedor.
-- `appModules` incluye autenticación, `loginModule`, `purchasesModule` y `signatureModule`, con repositorios y ViewModels por constructor.
+- `appModules` incluye autenticación y los módulos de login, compras, firma y clientes, con repositorios y ViewModels por constructor.
 - Repositorios y ViewModels reciben dependencias por constructor. El contenedor no se consulta dentro del dominio.
 - `LoginViewModel` se registra con `viewModelOf` de Koin y se obtiene en Compose mediante `koinViewModel`, conservando el alcance de Lifecycle.
 
@@ -82,15 +96,21 @@ El cliente compartido ya dispone de:
 - Redirecciones desactivadas; las futuras rutas de API deberán responder directamente.
 - Motores OkHttp / Darwin / CIO seleccionados mediante `expect` / `actual`.
 
-`ApiConfig.Production` configura el dominio aprobado `https://orobestni.com/api/sign/v1/`. `AuthApi` usa JSON y Bearer para login, perfil y logout; `DefaultAuthRepository` implementa restauración y cierre de sesión. Al crear `LoginViewModel` se restaura la sesión: solo se consulta `auth/me` si existe un token local. `PurchasesApi` consulta `compras` con Bearer y exclusivamente los parámetros aprobados. El token se obtiene en el repositorio desde `SessionStore`, sin exponerlo a la UI. Un rechazo `401`/`403` solicita revalidación desde el login, eliminando el contexto del listado mientras se verifica.
+`ApiConfig.Production` configura el dominio aprobado `https://orobestni.com/api/sign/v1/`. `AuthApi` usa JSON y Bearer para login, perfil y logout; `DefaultAuthRepository` implementa restauración y cierre de sesión. Al crear `LoginViewModel` se restaura la sesión: solo se consulta `auth/me` si existe un token local. `PurchasesApi` y `ClientsApi` consultan listados con Bearer; el token se obtiene en los repositorios desde `SessionStore`, sin exponerlo a la UI. La carga de clientes usa multipart y conserva la operación y bytes en memoria para reintentos. Un rechazo `401`/`403` solicita revalidación desde el login.
 
 ## UI e iconos
 
 `App` utiliza `OroBestTheme`, que aplica la paleta aprobada sobre `ComposablesTheme` de `com.composables:ui:0.2.0`. Los colores y sus usos están documentados en [PALETA.md](PALETA.md) y centralizados en `core/designsystem/theme`. Está disponible `com.composables:icons-lucide:1.0.0`; sus vectores se usarán con el componente `Icon` de Composables UI.
 
-El contenedor raíz muestra `LoginRoute`. El formulario usa Composables UI e iconos Lucide; la contraseña usa `BasicSecureTextField` de Foundation con tokens del tema. Los campos viven en la ruta, la contraseña solo en memoria, sin guardarse en el estado del sistema operativo. El acceso exitoso muestra `PurchasesRoute`, con agencia, usuario y cierre de sesión. La lista usa `LazyColumn`, tarjetas blancas con bordes suaves, estado de firma y botones con iconos para agregar/editar. La selección abre `SignatureRoute`; un guardado confirmado actualiza el listado y muestra la versión guardada.
+El contenedor raíz muestra `LoginRoute`. El formulario usa Composables UI e iconos Lucide; la contraseña usa `BasicSecureTextField` de Foundation con tokens del tema. Los campos viven en la ruta, la contraseña solo en memoria, sin guardarse en el estado del sistema operativo. El acceso exitoso muestra `HomeRoute` con las pestañas Compras y Clientes. La lista de compras usa `LazyColumn`, tarjetas blancas con bordes suaves, estado de firma y botones con iconos para agregar/editar. La selección abre `SignatureRoute`; un guardado confirmado actualiza el listado y muestra la versión guardada.
 
-`PurchasesRoute` tiene un `ViewModelStore` propio, identificado por usuario/agencia en la raíz y liberado al salir de la sesión. Así no se reutilizan compras/filtros de una cuenta anterior. Los campos de filtro se mantienen en la ruta y la consulta aplicada en `PurchasesUiState`; los cambios pendientes se indican antes de aplicar. Sin filtros de fecha se consulta todo el historial vigente de la agencia.
+`HomeRoute` presenta la barra inferior **Compras | Clientes** y conserva un `ViewModelStore` por pestaña durante la sesión, identificado por usuario/agencia en la raíz y liberado al salir. Al cambiar de pestaña se conservan consultas, paginación y estado de los ViewModels; los campos y el desplazamiento usan estado guardable de Compose. La barra se oculta durante la captura de firma a pantalla completa. Sin filtros de fecha se consulta todo el historial vigente de la agencia.
+
+Desde la pestaña Clientes se abre la lista global y paginada de clientes; cada cliente abre su pantalla de documentos. La cámara/fototeca y el selector PDF se implementan en los source sets: Android usa Activity Result y FileProvider; iOS usa UIImagePickerController y UIDocumentPicker; JVM permite elegir archivos. Las imágenes se normalizan antes de subirlas y los adjuntos/reintentos solo viven en memoria.
+
+El selector de archivos permite lotes de hasta 10 documentos (JPG/PNG, PDF, DOC, DOCX y TXT). El ViewModel genera un UUID por documento y envía el lote secuencialmente; ante un resultado incierto conserva el documento actual y los restantes, sin repetir los confirmados. El backend común `app\services\ClienteDocumentService` es utilizado por Sign y el formulario web para validar contenido, añadir sin sobrescribir, resolver rutas históricas/privadas y eliminar adjuntos individuales.
+
+Cada documento disponible ofrece **Ver**. `ClientsViewModel` descarga su contenido con Bearer mediante el repositorio y conserva los bytes solo mientras se consulta; cerrar el visor cancela la petición y libera su referencia. Las respuestas tardías no pueden reemplazar una vista previa nueva. Se usa el MIME de la respuesta HTTP, ya que los registros históricos pueden guardar extensiones en `tipo`. Las imágenes tienen zoom y desplazamiento; Android muestra PDF paginados con `PdfRenderer`, iOS usa PDFKit y escritorio abre el lector PDF predeterminado. Android elimina su PDF temporal después de renderizar cada página; escritorio conserva una copia temporal hasta cerrar el proceso para permitir que el lector externo la abra.
 
 ## Datos y sesión
 

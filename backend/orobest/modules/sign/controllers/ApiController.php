@@ -34,7 +34,7 @@ abstract class ApiController extends \yii\rest\Controller
         } catch (HttpException $e) {
             Yii::$app->response->statusCode = $e->statusCode;
             return ['success' => false, 'error' => [
-                'code' => $e instanceof ApiException ? $e->errorCode : 'http_' . $e->statusCode,
+                'code' => $e instanceof ApiException || $e instanceof \app\services\ClienteDocumentException ? $e->errorCode : 'http_' . $e->statusCode,
                 'message' => $e->getMessage(),
             ]];
         } catch (\Throwable $e) {
