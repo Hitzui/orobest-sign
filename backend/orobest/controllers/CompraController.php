@@ -337,7 +337,9 @@ class CompraController extends Controller
             return null;
         }
         $png = base64_decode($base64, true);
-        if ($png === false || strlen($png) > 2097152 || !str_starts_with($png, "\\x89PNG\\r\\n\\x1a\\n")) {
+        $size = $png === false ? false : @getimagesizefromstring($png);
+        if ($png === false || strlen($png) > 2097152 || !$size || $size[2] !== IMAGETYPE_PNG
+            || $size[0] < 1 || $size[1] < 1 || $size[0] > 2048 || $size[1] > 2048) {
             return null;
         }
         return 'data:image/png;base64,' . base64_encode($png);

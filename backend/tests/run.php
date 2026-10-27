@@ -131,6 +131,10 @@ try {
     imagepng($image, $storage . '.png');
     imagedestroy($image);
     $png = $storage . '.png';
+    $fingerprintOnly = $service->saveFingerprint(2, 1, $png);
+    check($fingerprintOnly['huella_guardada'] && $fingerprintOnly['idcompra'] === 2, 'guardar huella sin crear firma');
+    check($db->createCommand('SELECT huella FROM compra WHERE idcompra = 2')->queryScalar() === base64_encode(file_get_contents($png)), 'huella independiente guardada como Base64');
+    check((int) $db->createCommand('SELECT COUNT(*) FROM compra_firma WHERE idcompra = 2')->queryScalar() === 0, 'huella independiente no crea versión de firma');
     $documentUpload = $clientDocuments->save(1, 'cedula_frente', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'cedula.png', $png);
     check(!$documentUpload['replayed'] && $documentUpload['documento']['tipo_documento'] === 'cedula_frente', 'subida privada del frente de cédula');
     $documentRetry = $clientDocuments->save(1, 'cedula_frente', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'cedula.png', $png);

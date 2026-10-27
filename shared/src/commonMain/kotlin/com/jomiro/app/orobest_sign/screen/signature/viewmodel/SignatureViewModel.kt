@@ -76,34 +76,67 @@ class SignatureViewModel(
     }
 
     fun setFingerprint(png: ByteArray) {
-        if (!state.value.saving && !state.value.retryPending && !state.value.loading && !state.value.showPrevious) {
-            updateState { it.copy(fingerprintPng = png, error = null) }
+        if (!state.value.saving && !state.value.savingFingerprint && !state.value.retryPending && !state.value.loading && !state.value.showPrevious) {
+            updateState { it.copy(fingerprintPng = png, fingerprintSaved = false, error = null) }
         }
     }
 
     fun clearFingerprint() {
-        if (!state.value.saving && !state.value.retryPending) updateState { it.copy(fingerprintPng = null) }
+        if (!state.value.saving && !state.value.savingFingerprint && !state.value.retryPending) updateState {
+            it.copy(fingerprintPng = null, fingerprintSaved = false)
+        }
+    }
+
+    fun saveFingerprint() {
+        val current = state.value
+        val png = current.fingerprintPng ?: return
+        if (!current.canSaveFingerprint) return
+        updateState { it.copy(savingFingerprint = true, error = null) }
+        viewModelScope.launch {
+            try {
+                repository.saveFingerprint(purchaseId, png)
+                updateState { it.copy(savingFingerprint = false, fingerprintSaved = true) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                val apiError = error as? SignatureException
+                updateState {
+                    it.copy(
+                        savingFingerprint = false,
+                        requiresSessionCheck = error.needsSessionCheck(),
+                        error = when {
+                            apiError?.statusCode == 413 -> "La huella supera el límite de 2 MiB. Captúrala nuevamente."
+                            apiError?.statusCode == 422 -> "El servidor rechazó la imagen de huella. Captúrala nuevamente."
+                            apiError?.statusCode == 404 -> "El servidor respondió 404: no reconoce la ruta para guardar solo la huella. Confirma que ejecutas la app contra el backend local actualizado."
+                            apiError?.statusCode == 401 || apiError?.statusCode == 403 -> "El servidor rechazó la sesión o el acceso a esta compra. Vuelve a iniciar sesión y verifica que la compra pertenezca a tu agencia."
+                            apiError != null -> "No se pudo guardar la huella (HTTP ${apiError.statusCode}, ${apiError.code}). Puedes reintentar sin guardar una firma."
+                            else -> "No hubo respuesta válida del servidor. Comprueba que la app apunte al backend esperado y que Apache esté activo."
+                        },
+                    )
+                }
+            }
+        }
     }
 
     fun showError(message: String) = updateState { it.copy(error = message) }
 
     fun togglePrevious() {
-        if (!state.value.saving && !state.value.strokeActive && !state.value.retryPending && state.value.previousPng != null) {
+        if (!state.value.saving && !state.value.savingFingerprint && !state.value.strokeActive && !state.value.retryPending && state.value.previousPng != null) {
             updateState { it.copy(showPrevious = !it.showPrevious, strokeActive = false) }
         }
     }
 
     /** true permite salir inmediatamente; los trazos o un envío incierto requieren confirmación. */
     fun requestExit(): Boolean {
-        if (state.value.saving) return false
-        if (!state.value.hasInk && state.value.fingerprintPng == null && !state.value.retryPending) return true
+        if (state.value.saving || state.value.savingFingerprint) return false
+        if (!state.value.hasInk && (state.value.fingerprintPng == null || state.value.fingerprintSaved) && !state.value.retryPending) return true
         updateState { it.copy(confirmation = SignatureConfirmation.Exit, strokeActive = false) }
         return false
     }
 
     fun requestReload() {
-        if (state.value.loading || state.value.saving || state.value.retryPending) return
-        if (state.value.hasInk || state.value.fingerprintPng != null) updateState { it.copy(confirmation = SignatureConfirmation.Reload) } else load()
+        if (state.value.loading || state.value.saving || state.value.savingFingerprint || state.value.retryPending) return
+        if (state.value.hasInk || (state.value.fingerprintPng != null && !state.value.fingerprintSaved)) updateState { it.copy(confirmation = SignatureConfirmation.Reload) } else load()
     }
 
     fun reloadConfirmed() = load()
@@ -111,7 +144,7 @@ class SignatureViewModel(
 
     fun save() {
         val current = state.value
-        if (!current.canSave) return
+        if (!current.canSave || current.savingFingerprint) return
         val purchase = current.purchase ?: return
         updateState { it.copy(saving = true, error = null) }
         viewModelScope.launch {

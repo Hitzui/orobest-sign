@@ -16,6 +16,7 @@ return [
         'urlManager' => [
             'rules' => [
                 'api/sign/v1/auth/<action:login|logout|me>' => 'sign/auth/<action>',
+                'api/sign/v1/compras/<idcompra:\d+>/huella' => 'sign/compras/huella',
                 'api/sign/v1/compras/<idcompra:\d+>/firma' => 'sign/compras/firma',
                 'api/sign/v1/compras/<idcompra:\d+>' => 'sign/compras/view',
                 'api/sign/v1/compras' => 'sign/compras/index',

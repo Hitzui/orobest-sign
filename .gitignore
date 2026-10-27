@@ -26,3 +26,6 @@ opencode.exe
 *.jks
 *.keystore
 secrets.properties
+
+# Local application signing keystore (do not publish)
+/firma

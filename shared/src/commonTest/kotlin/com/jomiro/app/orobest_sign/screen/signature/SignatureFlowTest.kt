@@ -50,6 +50,32 @@ class SignatureFlowTest {
     @AfterTest fun tearDown() { Dispatchers.resetMain() }
 
     @Test
+    fun standaloneFingerprintUsesHuellaEndpointWithoutSignatureFields() = runTest {
+        val engine = MockEngine(MockEngineConfig().apply {
+            addHandler { request ->
+                assertEquals("POST", request.method.value)
+                assertEquals("/api/sign/v1/compras/123/huella", request.url.encodedPath)
+                assertEquals("Bearer synthetic-token", request.headers[HttpHeaders.Authorization])
+                val body = request.body.toByteArray()
+                assertTrue(body.asList().windowed(png.size).any { it == png.asList() })
+                val multipart = body.decodeToString()
+                assertTrue(multipart.contains("name=\"huella\""))
+                assertTrue(multipart.contains("filename=\"huella.png\""))
+                assertFalse(multipart.contains("name=\"firma\""))
+                respond("""{"success":true,"data":{"idcompra":123,"huella_guardada":true}}""", headers = jsonHeaders)
+            }
+        })
+        val client = createHttpClient(engine, createWireJson())
+        try {
+            val api = SignatureApi(client, ApiConfig("https://example.test/api/sign/v1/"))
+            api.saveFingerprint("synthetic-token", 123, png)
+        } finally {
+            client.close()
+            engine.close()
+        }
+    }
+
+    @Test
     fun editLoadsAuthorizedVersionAndRetrySendsTheSamePngOperationAndRevision() = runTest {
         val bodies = mutableListOf<String>()
         val encoder = Encoder()
@@ -173,6 +199,40 @@ class SignatureFlowTest {
     }
 
     @Test
+    fun savesFingerprintWithoutCreatingASignatureVersion() = runTest {
+        val repository = Repository()
+        val viewModel = SignatureViewModel(123, repository, Encoder(), StandardTestDispatcher(testScheduler))
+        viewModel.awaitIdle()
+        viewModel.setFingerprint(png)
+
+        assertTrue(viewModel.state.value.canSaveFingerprint)
+        assertFalse(viewModel.state.value.canSave)
+        viewModel.saveFingerprint()
+        viewModel.awaitIdle()
+
+        assertTrue(viewModel.state.value.fingerprintSaved)
+        assertEquals(123, repository.savedFingerprints.single().first)
+        assertContentEquals(png, repository.savedFingerprints.single().second)
+        assertTrue(repository.uploads.isEmpty())
+        assertNull(viewModel.state.value.savedVersion)
+        assertTrue(viewModel.requestExit())
+    }
+
+    @Test
+    fun fingerprintSaveShowsWhenTheServerDoesNotHaveTheDedicatedRoute() = runTest {
+        val repository = Repository().apply { fingerprintFailure = SignatureException(404, "not_found") }
+        val viewModel = SignatureViewModel(123, repository, Encoder(), StandardTestDispatcher(testScheduler))
+        viewModel.awaitIdle()
+        viewModel.setFingerprint(png)
+        viewModel.saveFingerprint()
+        viewModel.awaitIdle()
+
+        assertTrue(viewModel.state.value.error.orEmpty().contains("404"))
+        assertFalse(viewModel.state.value.fingerprintSaved)
+        assertTrue(viewModel.state.value.canSaveFingerprint)
+    }
+
+    @Test
     fun backConfirmsDiscardButClearAllowsImmediateExit() = runTest {
         val viewModel = SignatureViewModel(123, Repository(), Encoder(), StandardTestDispatcher(testScheduler))
         viewModel.awaitIdle()
@@ -198,7 +258,7 @@ class SignatureFlowTest {
         assertNull(viewModel.state.value.savedVersion)
     }
 
-    private suspend fun SignatureViewModel.awaitIdle() = withTimeout(5_000) { state.first { !it.loading && !it.saving } }
+    private suspend fun SignatureViewModel.awaitIdle() = withTimeout(5_000) { state.first { !it.loading && !it.saving && !it.savingFingerprint } }
     private fun SignatureViewModel.draw() {
         beginStroke(SignaturePoint(0.1f, 0.2f))
         appendPoint(SignaturePoint(0.5f, 0.3f))
@@ -214,10 +274,16 @@ class SignatureFlowTest {
         var current = SignaturePurchase(123, "A-123", "Cliente de prueba", revision, 0, false)
         var detailCalls = 0
         var failure: Exception? = null
+        var fingerprintFailure: Exception? = null
         var responseReady: CompletableDeferred<Unit>? = null
         val uploads = mutableListOf<SignatureUpload>()
+        val savedFingerprints = mutableListOf<Pair<Int, ByteArray>>()
         override suspend fun purchase(id: Int): SignaturePurchase { detailCalls++; return current }
         override suspend fun image(id: Int, version: Int) = png
+        override suspend fun saveFingerprint(id: Int, png: ByteArray) {
+            fingerprintFailure?.let { throw it }
+            savedFingerprints += id to png.copyOf()
+        }
         override suspend fun save(upload: SignatureUpload): SavedSignature {
             uploads += upload
             responseReady?.await()

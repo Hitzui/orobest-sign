@@ -1,7 +1,11 @@
 package com.jomiro.app.orobest_sign.screen.signature
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import com.composables.ui.components.Button
 import com.composables.ui.components.ButtonStyle
 import com.composables.ui.components.Text
@@ -16,10 +20,12 @@ internal actual fun FingerprintCaptureControl(
     onError: (String) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    var capturing by remember { mutableStateOf(false) }
     Button(
-        enabled = enabled,
+        enabled = enabled && !capturing,
         style = ButtonStyle.Outlined,
         onClick = {
+            capturing = true
             scope.launch {
                 try {
                     val image = withContext(Dispatchers.IO) { captureUareUFingerprintPng() }
@@ -29,9 +35,11 @@ internal actual fun FingerprintCaptureControl(
                     val reason = rootCause?.message?.takeIf(String::isNotBlank)
                         ?: error.message?.takeIf(String::isNotBlank)
                         ?: "Error del SDK DigitalPersona"
-                    onError("No se pudo capturar la huella: $reason")
+                    onError("La huella no se capturó ni se guardó: $reason")
+                } finally {
+                    capturing = false
                 }
             }
         },
-    ) { Text("Capturar huella") }
+    ) { Text(if (capturing) "Capturando…" else "Capturar huella") }
 }

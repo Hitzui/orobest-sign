@@ -12,7 +12,7 @@ class ComprasController extends ApiController
 {
     protected function verbs()
     {
-        return ['index' => ['GET'], 'view' => ['GET'], 'firma' => ['GET', 'POST']];
+        return ['index' => ['GET'], 'view' => ['GET'], 'firma' => ['GET', 'POST'], 'huella' => ['POST']];
     }
 
     public function actionIndex()
@@ -62,6 +62,24 @@ class ComprasController extends ApiController
         }
         return ['success' => true, 'data' => $service->save(
             $id, (int) $user->idusuario, (int) $user->idagencia, $params, $file->tempName
+        )];
+    }
+
+    public function actionHuella($idcompra)
+    {
+        $id = CompraAccessService::integer($idcompra, 'idcompra');
+        $user = Yii::$app->user->identity;
+        (new CompraAccessService())->find($id, (int) $user->idagencia);
+        $fingerprint = UploadedFile::getInstanceByName('huella');
+        if (!$fingerprint || $fingerprint->error !== UPLOAD_ERR_OK) {
+            $tooLarge = $fingerprint && in_array($fingerprint->error, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true);
+            throw new ApiException($tooLarge ? 413 : 422, $tooLarge ? 'image_too_large' : 'fingerprint_required', 'Se requiere un PNG de huella en el campo huella.');
+        }
+        if ($fingerprint->size > FirmaService::MAX_BYTES) {
+            throw new ApiException(413, 'image_too_large', 'La huella no puede superar 2 MiB.');
+        }
+        return ['success' => true, 'data' => (new FirmaService($this->module))->saveFingerprint(
+            $id, (int) $user->idagencia, $fingerprint->tempName
         )];
     }
 }

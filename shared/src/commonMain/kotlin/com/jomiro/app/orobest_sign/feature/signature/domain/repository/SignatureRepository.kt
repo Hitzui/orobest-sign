@@ -8,4 +8,5 @@ interface SignatureRepository {
     suspend fun purchase(id: Int): SignaturePurchase
     suspend fun image(id: Int, version: Int): ByteArray
     suspend fun save(upload: SignatureUpload): SavedSignature
+    suspend fun saveFingerprint(id: Int, png: ByteArray)
 }

@@ -11,4 +11,5 @@ internal class DefaultSignatureRepository(private val api: SignatureApi, private
     override suspend fun purchase(id: Int) = api.purchase(token(), id)
     override suspend fun image(id: Int, version: Int) = api.image(token(), id, version)
     override suspend fun save(upload: SignatureUpload) = api.save(token(), upload)
+    override suspend fun saveFingerprint(id: Int, png: ByteArray) = api.saveFingerprint(token(), id, png)
 }

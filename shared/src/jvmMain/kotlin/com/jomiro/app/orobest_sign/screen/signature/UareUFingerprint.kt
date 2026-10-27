@@ -7,14 +7,11 @@ import java.nio.file.Files
 import javax.imageio.ImageIO
 
 /** Captura solo imagen gris PNG; no genera ni conserva una plantilla biométrica. */
+@Synchronized
 internal fun captureUareUFingerprintPng(): ByteArray {
-    val sdkJar = Files.createTempFile("uareu-sdk-", ".jar")
-    val sdkResource = checkNotNull(UareUFingerprint::class.java.getResourceAsStream("/uareu/dpuareu.jar")) {
-        "No se encontró el SDK Java U.are.U"
-    }
-    sdkResource.use { input -> Files.newOutputStream(sdkJar).use(input::copyTo) }
-    sdkJar.toFile().deleteOnExit()
-    val loader = URLClassLoader(arrayOf(sdkJar.toUri().toURL()), UareUFingerprint::class.java.classLoader)
+    // Keep one classloader for the process: the SDK's JNI DLL cannot be loaded by
+    // a second classloader after the first reader has been closed.
+    val loader = UareUFingerprint.loader
     val previousContextLoader = Thread.currentThread().contextClassLoader
     Thread.currentThread().contextClassLoader = loader
     var readers: Any? = null
@@ -83,8 +80,22 @@ internal fun captureUareUFingerprintPng(): ByteArray {
             }
         }
         Thread.currentThread().contextClassLoader = previousContextLoader
-        runCatching { loader.close() }
     }
 }
 
-private object UareUFingerprint
+private object UareUFingerprint {
+    val loader: URLClassLoader by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        val sdkJar = Files.createTempFile("uareu-sdk-", ".jar")
+        try {
+            val sdkResource = checkNotNull(UareUFingerprint::class.java.getResourceAsStream("/uareu/dpuareu.jar")) {
+                "No se encontró el SDK Java U.are.U"
+            }
+            sdkResource.use { input -> Files.newOutputStream(sdkJar).use(input::copyTo) }
+            sdkJar.toFile().deleteOnExit()
+            URLClassLoader(arrayOf(sdkJar.toUri().toURL()), UareUFingerprint::class.java.classLoader)
+        } catch (error: Throwable) {
+            runCatching { Files.deleteIfExists(sdkJar) }
+            throw error
+        }
+    }
+}

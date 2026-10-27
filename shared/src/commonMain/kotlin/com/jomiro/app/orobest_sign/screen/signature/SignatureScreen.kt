@@ -2,6 +2,7 @@ package com.jomiro.app.orobest_sign.screen.signature
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -60,9 +61,13 @@ fun SignatureScreen(
     onFingerprintCaptured: (ByteArray) -> Unit,
     onFingerprintError: (String) -> Unit,
     onClearFingerprint: () -> Unit,
+    onSaveFingerprint: () -> Unit,
 ) {
     val image =
         remember(state.previousPng) { state.previousPng?.let { runCatching { decodeSignaturePng(it) }.getOrNull() } }
+    val fingerprintImage = remember(state.fingerprintPng) {
+        state.fingerprintPng?.let { runCatching { decodeSignaturePng(it) }.getOrNull() }
+    }
     BoxWithConstraints(
         Modifier.fillMaxSize().background(Theme[colors][backgroundColor])
             .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -103,24 +108,36 @@ fun SignatureScreen(
                         )
                     }
                 }
-                if (state.loading || state.saving) IndeterminateProgressIndicator(Modifier.fillMaxWidth())
+                if (state.loading || state.saving || state.savingFingerprint) IndeterminateProgressIndicator(Modifier.fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     FingerprintCaptureControl(
-                        enabled = !state.loading && !state.saving && !state.retryPending && !state.showPrevious,
+                        enabled = !state.loading && !state.saving && !state.savingFingerprint && !state.retryPending && !state.showPrevious,
                         onCaptured = onFingerprintCaptured,
                         onError = onFingerprintError,
                     )
                     if (state.fingerprintPng != null) {
-                        Text("Huella capturada", fontSize = 12.sp)
-                        Button(onClick = onClearFingerprint, enabled = !state.saving && !state.retryPending, style = ButtonStyle.Outlined) {
+                        fingerprintImage?.let { preview ->
+                            Image(
+                                preview,
+                                "Vista previa de la huella capturada",
+                                Modifier.size(width = 144.dp, height = 88.dp)
+                                    .background(Color.White)
+                                    .border(1.dp, Color(0xFFABBCDA)),
+                                contentScale = ContentScale.Fit,
+                            )
+                        }
+                        Text(if (state.fingerprintSaved) "Huella guardada" else "Huella capturada", fontSize = 12.sp)
+                        Button(onClick = onClearFingerprint, enabled = !state.saving && !state.savingFingerprint && !state.retryPending && !state.fingerprintSaved, style = ButtonStyle.Outlined) {
                             Text("Descartar captura", fontSize = 12.sp)
                         }
                     }
                 }
                 val message = when {
-                    state.saving -> "Guardando PNG… Espera la confirmación."
+                    state.saving -> "Guardando firma y huella… Espera la confirmación."
+                    state.savingFingerprint -> "Guardando solo la huella… Espera la confirmación."
                     state.loading -> "Consultando la compra y su firma actual…"
                     state.error != null -> state.error
+                    state.fingerprintSaved -> "Huella guardada en esta compra; todavía puedes agregar una firma después."
                     state.showPrevious -> "Firma guardada · versión ${state.purchase?.baseVersion}. Para reemplazarla, pulsa Capturar nueva."
                     state.previousError != null -> state.previousError
                     state.purchase?.purchaseModified == true -> "La compra cambió desde la firma anterior. Se guardará una nueva versión."
@@ -166,14 +183,13 @@ fun SignatureScreen(
                 ) {
                     Button(
                         onClick = onExit,
-                        enabled = !state.saving,
+                        enabled = !state.saving && !state.savingFingerprint,
                         style = ButtonStyle.Outlined
                     ) { Text("Cancelar") }
                     if (state.needsReload || (state.purchase == null && !state.loading)) {
                         Button(
                             onClick = onReload,
-                            enabled = !state.saving && !state.loading && !state.requiresSessionCheck,
-                            modifier = Modifier.weight(1f),
+                            enabled = !state.saving && !state.savingFingerprint && !state.loading && !state.requiresSessionCheck,
                             style = ButtonStyle.Primary
                         ) { Text("Recargar compra") }
                     } else {
@@ -185,10 +201,16 @@ fun SignatureScreen(
                             Icon(Lucide.Eraser, Modifier.size(18.dp))
                             Text("Limpiar")
                         }
+                        if (state.fingerprintPng != null) Button(
+                            onClick = onSaveFingerprint,
+                            enabled = state.canSaveFingerprint,
+                            style = ButtonStyle.Outlined,
+                        ) {
+                            Text(if (state.savingFingerprint) "Guardando huella…" else "Guardar huella")
+                        }
                         Button(
                             onClick = onSave,
-                            enabled = state.canSave,
-                            modifier = Modifier.weight(1f),
+                            enabled = state.canSave && !state.savingFingerprint,
                             style = ButtonStyle.Primary
                         ) {
                             Icon(Lucide.Save, Modifier.size(18.dp))

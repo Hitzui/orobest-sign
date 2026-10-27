@@ -47,5 +47,6 @@ fun SignatureRoute(purchaseId: Int, onClose: () -> Unit, onSaved: (Int) -> Unit,
         onFingerprintCaptured = viewModel::setFingerprint,
         onFingerprintError = { viewModel.showError(it) },
         onClearFingerprint = viewModel::clearFingerprint,
+        onSaveFingerprint = viewModel::saveFingerprint,
     )
 }

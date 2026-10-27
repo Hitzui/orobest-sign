@@ -28,6 +28,7 @@ Todas bajo `/api/sign/v1`, con `Accept: application/json`. Salvo login, requiere
 | GET | `compras` | Compras vigentes de todas las cajas de la agencia |
 | GET | `compras/{idcompra}` | Detalle resumido y revisión para firmar |
 | POST | `compras/{idcompra}/firma` | Crear o editar firma mediante nueva versión |
+| POST | `compras/{idcompra}/huella` | Guardar únicamente la huella del cliente, sin crear una firma |
 | GET | `compras/{idcompra}/firma` | Imagen actual autorizada |
 | GET | `compras/{idcompra}/firma?version=N` | Imagen de una versión anterior |
 | GET | `clientes?page=1&page_size=20&q=` | Listado paginado y búsqueda de todos los clientes |
@@ -103,6 +104,8 @@ Enviar `multipart/form-data` mediante POST:
 | `huella` (opcional) | Archivo PNG de la huella del cliente; solo Windows/JVM lo envía |
 
 El servidor verifica la compra y su agencia, decodifica el PNG y genera una imagen normalizada con fondo blanco. Una edición crea **una versión nueva** y conserva archivos/metadatos anteriores.
+
+Si no se va a capturar una firma manuscrita, `POST compras/{idcompra}/huella` recibe únicamente el campo multipart `huella` (PNG, máximo 2 MiB y 2048 × 2048). Reemplaza `compra.huella` después de validar la compra y la agencia, sin requerir ni generar una imagen/versión de firma.
 
 Si se adjunta `huella`, el servidor valida el PNG (máximo 2 MiB y 2048 × 2048) y guarda su Base64 en `compra.huella` dentro de la misma transacción del guardado de firma. La migración `m261026_000040_add_huella_to_compra.php` añade `LONGTEXT NULL`; el comprobante web la incluye si existe. Base64 no cifra el contenido. La app solo adquiere esta imagen en escritorio Windows con U.are.U instalado; no persiste plantillas ni implementa asistencia.
 

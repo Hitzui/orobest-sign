@@ -148,6 +148,42 @@ class FirmaService
         }
     }
 
+    /** Guarda únicamente la imagen PNG de la huella, sin crear una versión de firma. */
+    public function saveFingerprint(int $id, int $agency, string $uploadedPath): array
+    {
+        if (!is_file($uploadedPath) || filesize($uploadedPath) > self::MAX_BYTES) {
+            throw new ApiException(413, 'image_too_large', 'La huella no puede superar 2 MiB.');
+        }
+        $bytes = @file_get_contents($uploadedPath);
+        if ($bytes === false) {
+            throw new ApiException(422, 'invalid_fingerprint', 'No se pudo leer la imagen de huella.');
+        }
+        $fingerprint = $this->normalizeFingerprint(base64_encode($bytes));
+        $access = new CompraAccessService();
+        $row = $access->find($id, $agency);
+        if ((int) $row['estado'] !== 1) {
+            throw new ApiException(409, 'purchase_not_active', 'La compra está anulada y no admite cambios.');
+        }
+
+        $db = Yii::$app->db;
+        $transaction = $db->beginTransaction();
+        try {
+            $db->createCommand('SELECT idcompra FROM compra WHERE idcompra = :id FOR UPDATE', [':id' => $id])->queryScalar();
+            $row = $access->find($id, $agency);
+            if ((int) $row['estado'] !== 1) {
+                throw new ApiException(409, 'purchase_not_active', 'La compra está anulada y no admite cambios.');
+            }
+            $db->createCommand()->update('compra', ['huella' => $fingerprint], ['idcompra' => $id])->execute();
+            $transaction->commit();
+            return ['idcompra' => $id, 'huella_guardada' => true];
+        } catch (\Throwable $error) {
+            if ($transaction->isActive) {
+                $transaction->rollBack();
+            }
+            throw $error;
+        }
+    }
+
     private function storageRoot(): string
     {
         $root = $this->storagePath();

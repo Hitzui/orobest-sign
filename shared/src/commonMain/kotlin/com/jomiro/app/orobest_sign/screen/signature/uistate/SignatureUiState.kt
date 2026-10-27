@@ -10,6 +10,8 @@ data class SignatureUiState(
     val purchase: SignaturePurchase? = null,
     val previousPng: ByteArray? = null,
     val fingerprintPng: ByteArray? = null,
+    val savingFingerprint: Boolean = false,
+    val fingerprintSaved: Boolean = false,
     val previousError: String? = null,
     val showPrevious: Boolean = false,
     val strokes: List<SignatureStroke> = emptyList(),
@@ -23,6 +25,7 @@ data class SignatureUiState(
     val confirmation: SignatureConfirmation? = null,
 ) {
     val hasInk get() = strokes.any { it.isNotEmpty() }
-    val canDraw get() = purchase != null && !loading && !saving && !retryPending && !needsReload && !showPrevious && !requiresSessionCheck && savedVersion == null
-    val canSave get() = purchase != null && !loading && !saving && !needsReload && !strokeActive && !showPrevious && !requiresSessionCheck && savedVersion == null && (hasInk || retryPending)
+    val canDraw get() = purchase != null && !loading && !saving && !savingFingerprint && !retryPending && !needsReload && !showPrevious && !requiresSessionCheck && savedVersion == null
+    val canSave get() = purchase != null && !loading && !saving && !savingFingerprint && !needsReload && !strokeActive && !showPrevious && !requiresSessionCheck && savedVersion == null && (hasInk || retryPending)
+    val canSaveFingerprint get() = purchase != null && fingerprintPng != null && !fingerprintSaved && !loading && !saving && !savingFingerprint && !retryPending && !showPrevious && !requiresSessionCheck
 }

@@ -33,6 +33,7 @@ import kotlinx.serialization.Serializable
     val cliente: CustomerDto? = null, val firma: SignatureDto? = null,
 )
 @Serializable private data class SavedDto(val firma: SignatureDto)
+@Serializable private data class FingerprintSavedDto(val idcompra: Int, @SerialName("huella_guardada") val saved: Boolean)
 @Serializable private data class ErrorDto(val code: String)
 @Serializable private data class ErrorEnvelope(val error: ErrorDto)
 
@@ -72,6 +73,19 @@ internal class SignatureApi(private val client: HttpClient, private val config: 
         }.body<Envelope<SavedDto>>().data.firma
         check(data.idcompra == upload.purchaseId && data.version == upload.baseVersion + 1)
         SavedSignature(data.idcompra, data.version)
+    }
+
+    suspend fun saveFingerprint(token: String, id: Int, png: ByteArray): Unit = translateErrors {
+        val data = client.post(config.baseUrl + "compras/$id/huella") {
+            bearerAuth(token)
+            setBody(MultiPartFormDataContent(formData {
+                append("huella", png, Headers.build {
+                    append(HttpHeaders.ContentType, "image/png")
+                    append(HttpHeaders.ContentDisposition, "filename=\"huella.png\"")
+                })
+            }))
+        }.body<Envelope<FingerprintSavedDto>>().data
+        check(data.idcompra == id && data.saved)
     }
 
     private suspend fun <T> translateErrors(block: suspend () -> T): T = try {
