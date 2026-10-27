@@ -4,16 +4,16 @@ El backend está instalado localmente en `C:\xampp\htdocs\orobest`. La copia ent
 
 **No se ha conectado ni migrado la base del hosting.** El propietario sincroniza el esquema local y sube los archivos. La ubicación acordada para la firma en el comprobante es debajo de TOTALES, en el espacio de Firma del Cliente.
 
-## 1. Sincronizar exclusivamente las tablas nuevas
+## 1. Sincronizar el esquema de firmas y el permiso de impresión
 
-La migración local ya creó:
+La migración inicial de Sign creó:
 
 1. `sign_api_token`
 2. `compra_firma`
 
-En tu herramienta de comparación de esquemas, selecciona solamente estas dos tablas, sus índices y claves foráneas. Mantén tipos compatibles con los IDs existentes. No sincronices datos: ni usuarios, compras, tokens ni registros de firmas. No necesitas ejecutar la migración en el hosting si ya sincronizaste su estructura.
+La migración siguiente agrega `usuario.imprimir_sin_firma`, con valor predeterminado `0` para todas las cuentas existentes. La migración `m261026_000040_add_huella_to_compra.php` añade `compra.huella` (`LONGTEXT NULL`) para almacenar el PNG de huella en Base64. Sincroniza solo los cambios indicados, sin copiar datos entre bases.
 
-Los esquemas de `usuario`, `agencia`, `caja` y `compra` se verificaron sin cambios. La herramienta Yii registró la migración local en su historial habitual.
+No se modifican otras columnas ni tablas. La herramienta Yii registra las migraciones locales en su historial habitual.
 
 Comando local para consultar/aplicar únicamente las migraciones del módulo:
 
@@ -22,6 +22,8 @@ C:\xampp\php\php.exe yii migrate/up --migrationPath=@app/modules/sign/migrations
 ```
 
 No ejecutar un `migrate/up` general para esta entrega: el backend tiene migraciones de otros módulos.
+
+La migración de `imprimir_sin_firma` debe aplicarse en la base destino, o debe sincronizarse la columna indicada, antes de usar esta función.
 
 ## 2. Subir los archivos nuevos
 
@@ -41,13 +43,20 @@ modules/sign/models/CompraFirma.php
 modules/sign/services/AuthService.php
 modules/sign/services/CompraAccessService.php
 modules/sign/services/FirmaService.php
+modules/sign/services/SignaturePrintRenderer.php
 modules/sign/services/ClienteDocumentService.php
 services/ClienteDocumentService.php
 services/ClienteDocumentException.php
+modules/sign/migrations/m261022_000039_add_imprimir_sin_firma_to_usuario.php
+modules/sign/migrations/m261026_000040_add_huella_to_compra.php
 modules/sign/migrations/m261015_000038_create_sign_tables.php
+models/Usuario.php
+views/usuario/_form.php
+views/usuario/index.php
+views/usuario/view.php
 ```
 
-La migración puede conservarse como referencia de versión; subirla no la ejecuta. No es necesario subir `backend/tests`, `backend/tools`, archivos Kotlin, el APK ni el repositorio completo al hosting.
+Tras actualizar la web, un administrador puede activar **Permitir impresión sin firma** en el formulario de cada usuario; queda desactivado por defecto. No es necesario subir `backend/tests`, `backend/tools`, archivos Kotlin, el APK ni el repositorio completo al hosting.
 
 ### Actualización de eliminación desde la app
 
@@ -84,11 +93,36 @@ Para incluir la firma en el PDF, copia también desde `backend/orobest/` y reemp
 
 ```text
 controllers/CompraController.php
+models/Usuario.php
+modules/sign/migrations/m261022_000039_add_imprimir_sin_firma_to_usuario.php
+modules/sign/migrations/m261026_000040_add_huella_to_compra.php
 modules/sign/services/FirmaService.php
+modules/sign/services/SignaturePrintRenderer.php
+views/compra/view.php
 views/compra/print.php
+views/usuario/_form.php
+views/usuario/index.php
+views/usuario/view.php
 ```
 
-La copia de entrega contiene los mismos archivos que `C:\xampp\htdocs\orobest`. Es necesario actualizar `FirmaService.php` junto con el controlador porque incorpora el método que recupera la última imagen. El controlador lee la firma dentro del almacenamiento privado configurado; no publica ni construye una URL pública para la imagen. El comprobante la muestra centrada sobre el texto **Firma del Cliente** y la fecha, debajo de TOTALES, a 60 mm de ancho y sin deformar su proporción. Si aún no existe firma, se mantiene el espacio de firma manuscrita.
+La copia de entrega contiene los mismos archivos que `C:\xampp\htdocs\orobest`. Es necesario actualizar `FirmaService.php` y `SignaturePrintRenderer.php` junto con el controlador: recuperan la última imagen de firma y generan su variante de impresión. `compra.huella` guarda el PNG Base64 de la huella; la nueva migración debe aplicarse antes de desplegar el controlador. El comprobante muestra la huella disponible sobre la firma. La firma se presenta centrada debajo de TOTALES, a 60 mm de ancho y sin deformar su proporción. `views/compra/view.php` mantiene el botón de impresión disponible: comprueba la firma al pulsarlo y, si falta y el usuario autenticado no tiene permiso, muestra SweetAlert sin recargar el detalle. La acción del PDF vuelve a validar en el servidor; sin firma y sin permiso, redirige al detalle con el mensaje de error. El permiso `usuario.imprimir_sin_firma` se administra desde el formulario de usuarios y está desactivado por defecto.
+
+### Refuerzo de firma para impresora matricial y láser — 19 de octubre de 2026
+
+Para una instalación que ya imprime la firma, actualiza juntos únicamente estos archivos desde `backend/orobest/`:
+
+```text
+controllers/CompraController.php
+modules/sign/services/FirmaService.php
+modules/sign/services/SignaturePrintRenderer.php
+views/compra/view.php
+```
+
+Al generar de nuevo el PDF, la firma se convierte en una copia temporal en memoria de **negro sólido sobre blanco**, con un refuerzo de aproximadamente 0,10 mm por cada lado del trazo. En el PNG habitual de 1600 píxeles, el trazo de 4 píxeles pasa a unos 10 píxeles, equivalentes a **0,375 mm** al imprimirlo a 60 mm de ancho. Se conservan posición, proporción y tamaño del bloque de firma.
+
+La mejora se aplica también a las firmas ya guardadas: la imagen azul original, sus versiones y sus hashes no se modifican. No requiere migración ni una nueva instalación de la app; se activa con los tres PHP del servidor. Para comprobar el resultado, vuelve a generar el comprobante desde la web y realiza una prueba en cada impresora a tamaño real, evitando el modo borrador/ahorro de tóner.
+
+Se incluye una [comparativa PDF a 60 mm](entregables/Comparativa_firma_impresion.pdf), generada con mPDF y trazos sintéticos, para revisar o imprimir el antes/después sin usar datos de clientes.
 
 ## 3. Cambio puntual en `config/web.php`
 
@@ -134,13 +168,16 @@ https://orobestni.com/api/sign/v1/auth/me
 
 Después verificar login, `me` tras reiniciar el móvil, compras de la agencia completa, rechazo de una compra de otra sucursal, carga y edición de una firma, búsqueda de clientes, carga/listado/descarga autenticada de documentos, y logout. Los ejemplos completos de campos y respuestas están en [PROPUESTA_API.md](PROPUESTA_API.md).
 
-El comprobante PDF muestra la firma debajo de TOTALES, conservando la proporción PNG y la fecha del comprobante. Esta parte requiere subir los dos archivos web indicados arriba; la API y la impresión leen las firmas existentes sin migraciones adicionales.
+El comprobante PDF muestra la firma debajo de TOTALES, conservando la proporción PNG y la fecha del comprobante. Esta parte requiere subir los archivos de la sección **Actualizar el comprobante**; la API y la impresión leen las firmas existentes sin migraciones adicionales.
 
 ## Verificación local de esta entrega
 
 ```powershell
 C:\xampp\php\php.exe backend\tests\run.php C:\xampp\htdocs\orobest
+C:\xampp\php\php.exe backend\tests\signature_print.php
 .\gradlew.bat :shared:jvmTest :shared:testAndroidHostTest :androidApp:assembleDebug
 ```
 
 El test PHP crea una base temporal **local** con datos sintéticos, comprueba aislamiento y versiones, y la elimina al terminar. No modifica las compras ni las cuentas reales.
+
+Verificación del refuerzo de impresión: 71 comprobaciones de integración y 12 comprobaciones de imagen aprobadas. Se verificaron negro sólido sin grises, grosor del trazo, proporción, conservación de espacios, puntos, transparencias y preservación del archivo original. La calidad física debe comprobarse en la matricial y la láser de destino.

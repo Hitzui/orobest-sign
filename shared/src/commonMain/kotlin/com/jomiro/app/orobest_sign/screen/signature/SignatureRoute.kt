@@ -17,6 +17,9 @@ import org.koin.core.parameter.parametersOf
 internal expect fun SignaturePlatformEffect(onBack: () -> Unit)
 
 @Composable
+internal expect fun FingerprintCaptureControl(enabled: Boolean, onCaptured: (ByteArray) -> Unit, onError: (String) -> Unit)
+
+@Composable
 fun SignatureRoute(purchaseId: Int, onClose: () -> Unit, onSaved: (Int) -> Unit, onSessionCheck: () -> Unit) {
     val owner = remember(purchaseId) { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
     DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
@@ -41,5 +44,8 @@ fun SignatureRoute(purchaseId: Int, onClose: () -> Unit, onSaved: (Int) -> Unit,
         onConfirmDiscard = {
             if (state.confirmation == SignatureConfirmation.Reload) viewModel.reloadConfirmed() else onClose()
         },
+        onFingerprintCaptured = viewModel::setFingerprint,
+        onFingerprintError = { viewModel.showError(it) },
+        onClearFingerprint = viewModel::clearFingerprint,
     )
 }

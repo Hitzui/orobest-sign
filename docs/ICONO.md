@@ -22,7 +22,7 @@ Identidad: documento blanco con trazo de firma y pluma diagonal sobre azul de ma
 | Distribución macOS | `orobest-sign.icns`, con resoluciones hasta 1024 × 1024 |
 | Distribución Linux | `orobest-sign.png`, 512 × 512 |
 
-Las esquinas de iOS las aplica el sistema operativo. Las variantes de escritorio y Android anterior a los iconos adaptativos incluyen su propia forma redondeada. El nombre visible de la app en Android y en la ventana de escritorio es **OroBest Sign**.
+Las esquinas de iOS las aplica el sistema operativo. Las variantes de escritorio y Android anterior a los iconos adaptativos incluyen su propia forma redondeada. El nombre visible en Android es **OroBest Sign**; la ventana y los accesos directos de escritorio usan **Orobest**. El instalador Windows muestra **SEIN** como fabricante y usa el icono `.ico` de la app para el ejecutable y sus accesos directos en escritorio e Inicio.
 
 ## Regeneración
 

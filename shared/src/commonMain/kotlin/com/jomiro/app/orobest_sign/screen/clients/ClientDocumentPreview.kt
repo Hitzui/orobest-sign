@@ -93,7 +93,7 @@ internal fun ClientDocumentPreviewScreen(state: ClientsUiState, onClose: () -> U
 }
 
 @Composable
-private fun ClientImagePreview(bytes: ByteArray, name: String, modifier: Modifier) {
+internal fun ClientImagePreview(bytes: ByteArray, name: String, modifier: Modifier) {
     var failed by remember(bytes) { mutableStateOf(false) }
     val image by produceState<ImageBitmap?>(null, bytes) {
         try {

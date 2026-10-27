@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -55,6 +57,9 @@ fun SignatureScreen(
     onBegin: (SignaturePoint) -> Unit, onPoint: (SignaturePoint) -> Unit, onEnd: () -> Unit,
     onClear: () -> Unit, onTogglePrevious: () -> Unit, onSave: () -> Unit, onExit: () -> Unit,
     onReload: () -> Unit, onDismissConfirmation: () -> Unit, onConfirmDiscard: () -> Unit,
+    onFingerprintCaptured: (ByteArray) -> Unit,
+    onFingerprintError: (String) -> Unit,
+    onClearFingerprint: () -> Unit,
 ) {
     val image =
         remember(state.previousPng) { state.previousPng?.let { runCatching { decodeSignaturePng(it) }.getOrNull() } }
@@ -99,6 +104,19 @@ fun SignatureScreen(
                     }
                 }
                 if (state.loading || state.saving) IndeterminateProgressIndicator(Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    FingerprintCaptureControl(
+                        enabled = !state.loading && !state.saving && !state.retryPending && !state.showPrevious,
+                        onCaptured = onFingerprintCaptured,
+                        onError = onFingerprintError,
+                    )
+                    if (state.fingerprintPng != null) {
+                        Text("Huella capturada", fontSize = 12.sp)
+                        Button(onClick = onClearFingerprint, enabled = !state.saving && !state.retryPending, style = ButtonStyle.Outlined) {
+                            Text("Descartar captura", fontSize = 12.sp)
+                        }
+                    }
+                }
                 val message = when {
                     state.saving -> "Guardando PNG… Espera la confirmación."
                     state.loading -> "Consultando la compra y su firma actual…"
@@ -131,7 +149,10 @@ fun SignatureScreen(
                         SignatureCanvas(
                             state.strokes,
                             state.canDraw,
-                            Modifier.aspectRatio(2f, matchHeightConstraintsFirst = true),
+                            Modifier.widthIn(max = 900.dp)
+                                .heightIn(max = 450.dp)
+                                .fillMaxWidth()
+                                .aspectRatio(2f, matchHeightConstraintsFirst = true),
                             onBegin,
                             onPoint,
                             onEnd
@@ -187,7 +208,7 @@ fun SignatureScreen(
                     when {
                         state.retryPending -> "El envío no está confirmado. Puedes reintentarlo sin duplicados antes de salir. Si sales, consulta la compra para comprobar si se guardó."
                         state.confirmation == SignatureConfirmation.Reload -> "Se descartarán estos trazos y se consultarán los datos y la versión actuales antes de volver a firmar."
-                        else -> "Los trazos que aún no hayas guardado se perderán."
+                        else -> "Los trazos y la huella capturada que aún no hayas guardado se perderán."
                     }, fontSize = 14.sp
                 )
             },

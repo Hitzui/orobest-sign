@@ -2,8 +2,10 @@ package com.jomiro.app.orobest_sign.screen.clients
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.uikit.LocalUIViewController
 import androidx.compose.ui.window.LocalUIViewController
 import com.jomiro.app.orobest_sign.feature.clients.domain.model.ClientFile
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import platform.Foundation.NSData
@@ -35,6 +37,10 @@ import platform.UIKit.UIDocumentPickerViewController.delegate
 import platform.UIKit.UIDocumentPickerViewController.allowsMultipleSelection
 import platform.CoreGraphics.CGRectMake
 import platform.CoreGraphics.CGSizeMake
+import platform.Foundation.dataWithContentsOfURL
+import platform.UIKit.UIDocumentPickerMode
+import platform.UIKit.UIImagePickerControllerSourceType
+import platform.darwin.NSObject
 import platform.posix.memcpy
 import kotlin.math.min
 
@@ -48,10 +54,12 @@ actual fun rememberClientDocumentPicker(onSelected: (List<ClientFile>) -> Unit):
         when (source) {
             ClientDocumentSource.Camera, ClientDocumentSource.Gallery -> {
                 val picker = UIImagePickerController()
-                val pickerSource = if (source == ClientDocumentSource.Camera && UIImagePickerController.isSourceTypeAvailable(UIImagePickerControllerSourceTypeCamera)) {
-                    UIImagePickerControllerSourceTypeCamera
+                val pickerSource = if (source == ClientDocumentSource.Camera && UIImagePickerController.isSourceTypeAvailable(
+                        UIImagePickerControllerSourceType.UIImagePickerControllerSourceTypeCamera
+                    )) {
+                    UIImagePickerControllerSourceType.UIImagePickerControllerSourceTypeCamera
                 } else {
-                    UIImagePickerControllerSourceTypePhotoLibrary
+                    UIImagePickerControllerSourceType.UIImagePickerControllerSourceTypePhotoLibrary
                 }
                 picker.sourceType = pickerSource
                 picker.allowsEditing = false
@@ -62,7 +70,7 @@ actual fun rememberClientDocumentPicker(onSelected: (List<ClientFile>) -> Unit):
                 host.presentViewController(picker, animated = true, completion = null)
             }
             ClientDocumentSource.Pdf -> {
-                val picker = UIDocumentPickerViewController(documentTypes = listOf("com.adobe.pdf", "public.image", "public.plain-text", "com.microsoft.word.doc", "org.openxmlformats.wordprocessingml.document"), inMode = UIDocumentPickerModeImport)
+                val picker = UIDocumentPickerViewController(documentTypes = listOf("com.adobe.pdf", "public.image", "public.plain-text", "com.microsoft.word.doc", "org.openxmlformats.wordprocessingml.document"), inMode = UIDocumentPickerMode.UIDocumentPickerModeImport)
                 picker.allowsMultipleSelection = true
                 val delegate = ClientPdfPickerDelegate(host) { file -> callback.value(file) }
                 activePickerDelegate = delegate
@@ -124,6 +132,7 @@ private class ClientPdfPickerDelegate(
     }
 }
 
+@OptIn(ExperimentalForeignApi::class)
 private fun UIImage.toClientJpeg(): ClientFile {
     val maxSide = 2400.0
     val ratio = min(1.0, maxSide / maxOf(size.width, size.height))

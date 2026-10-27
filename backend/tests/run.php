@@ -75,7 +75,7 @@ try {
         'CREATE TABLE cliente (idcliente INT PRIMARY KEY, nombres VARCHAR(255), apellidos VARCHAR(255), cedula VARCHAR(14), telefono VARCHAR(20), celular VARCHAR(20)) ENGINE=InnoDB',
         'CREATE TABLE documentos (id INT PRIMARY KEY AUTO_INCREMENT, titulo VARCHAR(255), archivos TEXT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, idcliente INT NULL, updated_at DATETIME NULL) ENGINE=InnoDB',
         'CREATE TABLE archivos_clientes (idarchivo INT PRIMARY KEY AUTO_INCREMENT, iddocumento INT NULL, nombre_original TEXT NOT NULL, ruta TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, tipo VARCHAR(255) NULL, size INT NULL) ENGINE=InnoDB',
-        'CREATE TABLE compra (idcompra INT PRIMARY KEY, numcompra VARCHAR(255), fecha DATETIME, idcaja INT, estado INT, idusuario INT, idcliente INT, forma_pago VARCHAR(255), efectivo DECIMAL(12,3), transferencia DECIMAL(12,3), adelanto DECIMAL(12,3), total DECIMAL(12,3), subtotal DECIMAL(12,3), descuento DECIMAL(12,3), updated_at DATETIME) ENGINE=InnoDB',
+        'CREATE TABLE compra (idcompra INT PRIMARY KEY, numcompra VARCHAR(255), fecha DATETIME, idcaja INT, estado INT, idusuario INT, idcliente INT, forma_pago VARCHAR(255), efectivo DECIMAL(12,3), transferencia DECIMAL(12,3), adelanto DECIMAL(12,3), total DECIMAL(12,3), subtotal DECIMAL(12,3), descuento DECIMAL(12,3), huella LONGTEXT NULL, updated_at DATETIME) ENGINE=InnoDB',
         'CREATE TABLE deta_compra (iddetacompra INT PRIMARY KEY, idcompra INT, linea INT, descripcion TEXT, kilataje VARCHAR(255), kilate DECIMAL(12,3), precio DECIMAL(12,3), peso DECIMAL(12,3), importe DECIMAL(12,3), lectura INT) ENGINE=InnoDB',
     ] as $sql) {
         $db->createCommand($sql)->execute();
@@ -138,11 +138,13 @@ try {
     [$documentPath, $documentMime] = $clientDocuments->image(1, $documentUpload['documento']['idarchivo']);
     check(is_file($documentPath) && $documentMime === 'image/png', 'descarga privada del documento por cliente');
     check(count($clientDocuments->documents(1)['items']) === 1, 'listado de documentos asociados al cliente');
-    $params = ['operation_id' => '11111111-1111-4111-8111-111111111111', 'compra_revision' => $access->detail(1, 1)['revision'], 'base_version' => 0];
+    $params = ['operation_id' => '11111111-1111-4111-8111-111111111111', 'compra_revision' => $access->detail(1, 1)['revision'], 'base_version' => 0, 'huella' => base64_encode(file_get_contents($png))];
     $first = $service->save(1, 1, 1, $params, $png);
     check($first['firma']['version'] === 1 && !$first['replayed'], 'primera firma');
+    check($db->createCommand('SELECT huella FROM compra WHERE idcompra = 1')->queryScalar() === $params['huella'], 'guarda huella PNG Base64 en compra');
     $retry = $service->save(1, 1, 1, $params, $png);
     check($retry['replayed'] && $retry['firma']['idfirma'] === $first['firma']['idfirma'], 'reintento idempotente');
+    rejects(fn () => $service->save(1, 1, 1, array_replace($params, ['operation_id' => '66666666-6666-4666-8666-666666666666', 'huella' => base64_encode('no es PNG')]), $png), 'invalid_fingerprint');
     rejects(fn () => $service->save(3, 1, 1, $params, $png), 'purchase_not_found');
     $edit = array_replace($params, ['base_version' => 1, 'operation_id' => '22222222-2222-4222-8222-222222222222']);
     check($service->save(1, 1, 1, $edit, $png)['firma']['version'] === 2, 'editar crea versión nueva');
@@ -151,6 +153,11 @@ try {
     check($oldPath !== $latestPath && is_file($oldPath), 'historial conserva imágenes');
     check($service->latestImageForPrint(1) === $latestPath, 'comprobante obtiene la última imagen privada');
     check($service->latestImageForPrint(2) === null, 'compra sin firma conserva el espacio de firma manual');
+    $storedHash = hash_file('sha256', $latestPath);
+    $printablePng = $service->latestPngForPrint(1);
+    check($printablePng !== null && getimagesizefromstring($printablePng)[2] === IMAGETYPE_PNG, 'comprobante genera una copia PNG de impresión de la última firma');
+    check(hash_file('sha256', $latestPath) === $storedHash && is_file($oldPath), 'impresión no modifica el archivo firmado ni sus versiones anteriores');
+    check($service->latestPngForPrint(2) === null, 'comprobante sin firma no genera una imagen artificial');
     $stale = array_replace($params, ['operation_id' => '33333333-3333-4333-8333-333333333333']);
     rejects(fn () => $service->save(1, 1, 1, $stale, $png), 'signature_changed');
     $db->createCommand()->update('compra', ['total' => '999.000'], ['idcompra' => 1])->execute();

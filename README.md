@@ -12,6 +12,8 @@ La entrada `App` inicializa Koin, el tema y el **login con sesión persistente**
 
 Clientes permite seleccionar hasta **10 documentos** con una sola acción, añadirlos sin reemplazar los anteriores y eliminarlos individualmente con confirmación. Web y app comparten almacenamiento y lectura de JPG/PNG, PDF, DOC, DOCX y TXT, incluidos los adjuntos históricos. El lote móvil se envía secuencialmente y reintenta únicamente los archivos pendientes.
 
+En escritorio Windows, **Escanear frente / reverso / otro** adquiere una imagen mediante WIA o TWAIN de 32/64 bits y permite revisarla antes de subirla. Esto incluye controladores Epson de red que funcionan en Epson Scan 2 pero no aparecen en WIA. El equipo elegido se recuerda en la PC y puede reemplazarse con **Cambiar escáner**, sin fijar un modelo Epson. Requisitos y uso en [ESCANER_WINDOWS.md](docs/ESCANER_WINDOWS.md).
+
 Dominio aprobado: `https://orobestni.com/`. El propietario sube los archivos al hosting. Las migraciones de Sign solo crean `sign_api_token` y `compra_firma`; el módulo de clientes reutiliza el esquema existente. Ver [instrucciones de hosting](docs/DESPLIEGUE_HOSTING.md).
 
 Paleta visual aprobada e integrada en el tema compartido: **`#ABBCDA` · `#FFFFFF` · `#415D8A` · `#D0E1F5`**. Ver [colores y usos](docs/PALETA.md).
@@ -121,7 +123,7 @@ compra.idcaja ──> caja.idcaja
 
 La tabla `usuario` puede conservar su estructura. Se detectaron dos cuentas activas con el mismo `username`, que requieren revisión de datos antes del login móvil. Consulta los detalles en [el análisis web](docs/ANALISIS_WEB.md).
 
-La migración local añadió únicamente `sign_api_token` y `compra_firma`; los esquemas de `usuario`, `agencia`, `caja` y `compra` se verificaron sin cambios. La sesión Sign dura 90 días de inactividad y se renueva con cada petición autenticada. El comprobante PDF muestra la última firma debajo de TOTALES, con proporción preservada y fecha debajo; si no hay imagen se conserva la línea para firma manual.
+La migración local añadió únicamente `sign_api_token` y `compra_firma`; los esquemas de `usuario`, `agencia`, `caja` y `compra` se verificaron sin cambios. La sesión Sign dura 90 días de inactividad y se renueva con cada petición autenticada. El comprobante PDF muestra la última firma debajo de TOTALES, con proporción preservada y fecha debajo; para matricial/láser usa una copia en negro sólido con trazo reforzado, conservando el PNG original azul. Si no hay imagen se conserva la línea para firma manual.
 
 ## Requisitos y comandos
 
@@ -141,6 +143,16 @@ C:\xampp\php\php.exe backend\tests\run.php C:\xampp\htdocs\orobest
 ```
 
 En macOS/Linux se usa `./gradlew`; para iOS abrir `iosApp/iosApp.xcodeproj`. Las comprobaciones Android/JVM no sustituyen una compilación iOS en macOS.
+
+### Instalador Windows
+
+El MSI muestra **Orobest**, fabricante **SEIN**, versión **1.0.3** y el icono de la app. Crea accesos directos **Orobest** en el escritorio y en el menú Inicio. Incluye el puente TWAIN para la detección de controladores Epson de red de 32 bits y una respuesta por archivo independiente de los mensajes del controlador.
+
+```powershell
+.\gradlew.bat :desktopApp:packageMsi
+```
+
+Salida: `desktopApp/build/compose/binaries/main/msi/Orobest-1.0.3.msi`. Se conserva explícitamente el `UpgradeCode` del MSI original `com.jomiro.app.orobest_sign` 1.0.0 para que Windows pueda reconocerlo al actualizar, aunque cambie el nombre visible. Las entregas posteriores deben mantener ese UUID e incrementar `packageVersion`. La misma identidad visual y configuración de accesos directos se aplica a `packageReleaseMsi`.
 
 ### APK Android y actualización
 

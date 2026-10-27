@@ -207,7 +207,9 @@ private fun ClientDocumentsScreen(
     var pickedFiles by remember { mutableStateOf<List<ClientFile>>(emptyList()) }
     var pickerError by remember { mutableStateOf<String?>(null) }
     var deleteCandidate by remember { mutableStateOf<ClientDocument?>(null) }
-    val enabled = !state.uploading && !state.deleting && state.pendingUpload == null
+    var scannerBusy by remember(client.id) { mutableStateOf(false) }
+    val acquisitionEnabled = !state.uploading && !state.deleting && state.pendingUpload == null
+    val enabled = acquisitionEnabled && !scannerBusy
     val otherName = rememberTextFieldState()
     val picker = rememberClientDocumentPicker { files ->
         if (files.size > 10) {
@@ -227,7 +229,7 @@ private fun ClientDocumentsScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            IconButton(onClick = onBack, enabled = !state.uploading && !state.deleting, style = ButtonStyle.Outlined, modifier = Modifier.size(46.dp)) {
+            IconButton(onClick = onBack, enabled = !state.uploading && !state.deleting && !scannerBusy, style = ButtonStyle.Outlined, modifier = Modifier.size(46.dp)) {
                 Icon(Lucide.ChevronLeft, contentDescription = "Volver a clientes")
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -239,6 +241,16 @@ private fun ClientDocumentsScreen(
             }
         }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            ClientDocumentScanner(
+                clientId = client.id,
+                enabled = acquisitionEnabled,
+                onBusyChange = { scannerBusy = it },
+                onSelected = { category, file ->
+                    categoryName = category.name
+                    pickedFiles = listOf(file)
+                    pickerError = null
+                },
+            )
             if (state.documentsLoading) {
                 IndeterminateProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 16.dp))
             } else {

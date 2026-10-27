@@ -9,6 +9,7 @@ data class SignatureUiState(
     val loading: Boolean = true,
     val purchase: SignaturePurchase? = null,
     val previousPng: ByteArray? = null,
+    val fingerprintPng: ByteArray? = null,
     val previousError: String? = null,
     val showPrevious: Boolean = false,
     val strokes: List<SignatureStroke> = emptyList(),

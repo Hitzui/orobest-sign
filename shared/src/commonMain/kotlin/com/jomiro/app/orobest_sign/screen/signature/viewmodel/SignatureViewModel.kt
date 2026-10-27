@@ -75,6 +75,18 @@ class SignatureViewModel(
         if (state.value.canDraw && !state.value.strokeActive) updateState { it.copy(strokes = emptyList(), error = null) }
     }
 
+    fun setFingerprint(png: ByteArray) {
+        if (!state.value.saving && !state.value.retryPending && !state.value.loading && !state.value.showPrevious) {
+            updateState { it.copy(fingerprintPng = png, error = null) }
+        }
+    }
+
+    fun clearFingerprint() {
+        if (!state.value.saving && !state.value.retryPending) updateState { it.copy(fingerprintPng = null) }
+    }
+
+    fun showError(message: String) = updateState { it.copy(error = message) }
+
     fun togglePrevious() {
         if (!state.value.saving && !state.value.strokeActive && !state.value.retryPending && state.value.previousPng != null) {
             updateState { it.copy(showPrevious = !it.showPrevious, strokeActive = false) }
@@ -84,14 +96,14 @@ class SignatureViewModel(
     /** true permite salir inmediatamente; los trazos o un envío incierto requieren confirmación. */
     fun requestExit(): Boolean {
         if (state.value.saving) return false
-        if (!state.value.hasInk && !state.value.retryPending) return true
+        if (!state.value.hasInk && state.value.fingerprintPng == null && !state.value.retryPending) return true
         updateState { it.copy(confirmation = SignatureConfirmation.Exit, strokeActive = false) }
         return false
     }
 
     fun requestReload() {
         if (state.value.loading || state.value.saving || state.value.retryPending) return
-        if (state.value.hasInk) updateState { it.copy(confirmation = SignatureConfirmation.Reload) } else load()
+        if (state.value.hasInk || state.value.fingerprintPng != null) updateState { it.copy(confirmation = SignatureConfirmation.Reload) } else load()
     }
 
     fun reloadConfirmed() = load()
@@ -110,6 +122,7 @@ class SignatureViewModel(
                     purchaseRevision = purchase.revision,
                     baseVersion = purchase.baseVersion,
                     png = withContext(renderingDispatcher) { encoder.encode(current.strokes) },
+                    fingerprintPng = current.fingerprintPng,
                 ).also { pendingUpload = it }
                 val saved = repository.save(upload)
                 pendingUpload = null

@@ -103,6 +103,32 @@ class CompraController extends Controller
         ]);
     }
 
+    /** Comprueba en tiempo real si la compra tiene una firma imprimible. */
+    public function actionCheckSignature($idcompra): array
+    {
+        Yii::$app->response->format = Response::FORMAT_JSON;
+        $compra = $this->findModel($idcompra);
+        if ($compra === null) {
+            Yii::$app->response->statusCode = 404;
+            return ['success' => false, 'firmada' => false, 'message' => 'Compra no encontrada.'];
+        }
+
+        $signModule = Yii::$app->getModule('sign');
+        $firmaContenido = $signModule instanceof SignModule
+            ? (new FirmaService($signModule))->latestPngForPrint((int) $compra->idcompra)
+            : null;
+        $firmada = $firmaContenido !== null;
+        $identity = Yii::$app->user->identity;
+        $puedeImprimirSinFirma = $identity !== null && (bool) $identity->imprimir_sin_firma;
+
+        return [
+            'success' => true,
+            'firmada' => $firmada,
+            'puede_imprimir_sin_firma' => $puedeImprimirSinFirma,
+            'permitido' => $firmada || $puedeImprimirSinFirma,
+        ];
+    }
+
     public function actionPrint($idcompra): Response|string
     {
         if (Yii::$app->user->isGuest) {
@@ -113,6 +139,17 @@ class CompraController extends Controller
         if (is_null($compra)) {
             return $this->redirect(['index']);
         }
+        $signModule = Yii::$app->getModule('sign');
+        $firmaContenido = $signModule instanceof SignModule
+            ? (new FirmaService($signModule))->latestPngForPrint((int) $compra->idcompra)
+            : null;
+        $identity = Yii::$app->user->identity;
+        $puedeImprimirSinFirma = $identity !== null && (bool) $identity->imprimir_sin_firma;
+        if ($firmaContenido === null && !$puedeImprimirSinFirma) {
+            Yii::$app->session->setFlash('error', 'No se puede imprimir la compra porque falta la firma.');
+            return $this->redirect(['view', 'idcompra' => $compra->idcompra]);
+        }
+
         $cliente = $compra->cliente;
         $departamento = CatalogoItem::find()->where(['idcatalog_item' => $cliente->departamento])->one();
         $ciudad = CatalogoItem::find()->where(['idcatalog_item' => $cliente->ciudad])->one();
@@ -131,18 +168,10 @@ class CompraController extends Controller
             return $this->redirect(['site/login']);
         }
         $agencia = Agencia::findOne($usuario->idagencia);
-        $firmaDataUri = null;
-        // La impresión no pasa por una ruta del módulo Sign, así que puede seguir descargado.
-        $signModule = Yii::$app->getModule('sign');
-        if ($signModule instanceof SignModule) {
-            $firmaPath = (new FirmaService($signModule))->latestImageForPrint((int) $compra->idcompra);
-            if ($firmaPath !== null) {
-                $firmaContenido = @file_get_contents($firmaPath);
-                if ($firmaContenido !== false) {
-                    $firmaDataUri = 'data:image/png;base64,' . base64_encode($firmaContenido);
-                }
-            }
-        }
+        $firmaDataUri = $firmaContenido !== null
+            ? 'data:image/png;base64,' . base64_encode($firmaContenido)
+            : null;
+        $huellaDataUri = $this->huellaDataUri($compra->huella ?? null);
 
         $content = $this->renderPartial('print', [
             'compra' => $compra,
@@ -152,6 +181,7 @@ class CompraController extends Controller
             'agencia' => $agencia->descripcion,
             'usuario'=>$usuario,
             'firmaDataUri' => $firmaDataUri,
+            'huellaDataUri' => $huellaDataUri,
         ]);
 
         $pdf = new Pdf([
@@ -297,5 +327,19 @@ class CompraController extends Controller
     protected function findModel($idcompra): ?Compra
     {
         return Compra::findOne(['idcompra' => $idcompra]);
+    }
+
+    /** Acepta únicamente PNG Base64 válido antes de incluirlo como imagen en el PDF. */
+    private function huellaDataUri(?string $base64): ?string
+    {
+        if ($base64 === null || $base64 === '' || strlen($base64) > 2800000
+            || !preg_match('/^[A-Za-z0-9+\\/]*={0,2}$/D', $base64)) {
+            return null;
+        }
+        $png = base64_decode($base64, true);
+        if ($png === false || strlen($png) > 2097152 || !str_starts_with($png, "\\x89PNG\\r\\n\\x1a\\n")) {
+            return null;
+        }
+        return 'data:image/png;base64,' . base64_encode($png);
     }
 }

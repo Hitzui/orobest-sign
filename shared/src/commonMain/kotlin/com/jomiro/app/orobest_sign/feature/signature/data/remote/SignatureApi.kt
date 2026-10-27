@@ -58,6 +58,12 @@ internal class SignatureApi(private val client: HttpClient, private val config: 
                 append("operation_id", upload.operationId)
                 append("compra_revision", upload.purchaseRevision)
                 append("base_version", upload.baseVersion.toString())
+                upload.fingerprintPng?.let { fingerprint ->
+                    append("huella", fingerprint, Headers.build {
+                        append(HttpHeaders.ContentType, "image/png")
+                        append(HttpHeaders.ContentDisposition, "filename=\"huella.png\"")
+                    })
+                }
                 append("firma", upload.png, Headers.build {
                     append(HttpHeaders.ContentType, "image/png")
                     append(HttpHeaders.ContentDisposition, "filename=\"firma.png\"")

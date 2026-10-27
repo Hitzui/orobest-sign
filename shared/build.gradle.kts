@@ -1,4 +1,33 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.net.URI
+import java.security.MessageDigest
+import java.util.zip.ZipFile
+
+@CacheableTask
+abstract class PrepareTwainLibrary : DefaultTask() {
+    @get:Input abstract val libraryVersion: Property<String>
+    @get:Input abstract val archiveSha256: Property<String>
+    @get:OutputDirectory abstract val outputDirectory: DirectoryProperty
+
+    @TaskAction
+    fun prepare() {
+        val version = libraryVersion.get()
+        val archive = temporaryDir.resolve("ntwain.nupkg")
+        val connection = URI("https://api.nuget.org/v3-flatcontainer/ntwain/$version/ntwain.$version.nupkg").toURL().openConnection().apply {
+            connectTimeout = 30_000
+            readTimeout = 60_000
+        }
+        connection.getInputStream().use { input -> archive.outputStream().use { input.copyTo(it) } }
+        val hash = MessageDigest.getInstance("SHA-256").digest(archive.readBytes()).joinToString("") { "%02x".format(it) }
+        check(hash.equals(archiveSha256.get(), ignoreCase = true)) { "NTwain archive checksum mismatch" }
+        val target = outputDirectory.file("scanner/NTwain.dll").get().asFile
+        target.parentFile.mkdirs()
+        ZipFile(archive).use { zip ->
+            val entry = checkNotNull(zip.getEntry("lib/net462/NTwain.dll"))
+            zip.getInputStream(entry).use { input -> target.outputStream().use { input.copyTo(it) } }
+        }
+    }
+}
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -6,6 +35,12 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
+}
+
+val prepareTwainLibrary = tasks.register<PrepareTwainLibrary>("prepareTwainLibrary") {
+    libraryVersion.set(libs.versions.ntwain)
+    archiveSha256.set("a28e17d600b345e1a387166f3b1d1913cc6b7fe0eb6c5cb572389d1519ca88ea")
+    outputDirectory.set(layout.buildDirectory.dir("generated/twainResources"))
 }
 
 kotlin {
@@ -43,6 +78,9 @@ kotlin {
     }
 
     sourceSets {
+        jvmMain {
+            resources.srcDir(prepareTwainLibrary.flatMap { it.outputDirectory })
+        }
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.core.ktx)

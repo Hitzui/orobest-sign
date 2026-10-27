@@ -48,8 +48,20 @@ class ComprasController extends ApiController
             $tooLarge = $file && in_array($file->error, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true);
             throw new ApiException($tooLarge ? 413 : 422, $tooLarge ? 'image_too_large' : 'image_required', 'Se requiere un archivo PNG en el campo firma.');
         }
+        $params = Yii::$app->request->post();
+        $fingerprint = UploadedFile::getInstanceByName('huella');
+        if ($fingerprint !== null) {
+            if ($fingerprint->error !== UPLOAD_ERR_OK || $fingerprint->size > 2097152) {
+                throw new ApiException($fingerprint->size > 2097152 ? 413 : 422, 'invalid_fingerprint', 'La imagen de huella no es válida o supera 2 MiB.');
+            }
+            $bytes = @file_get_contents($fingerprint->tempName);
+            if ($bytes === false) {
+                throw new ApiException(422, 'invalid_fingerprint', 'No se pudo leer la imagen de huella.');
+            }
+            $params['huella'] = base64_encode($bytes);
+        }
         return ['success' => true, 'data' => $service->save(
-            $id, (int) $user->idusuario, (int) $user->idagencia, Yii::$app->request->post(), $file->tempName
+            $id, (int) $user->idusuario, (int) $user->idagencia, $params, $file->tempName
         )];
     }
 }

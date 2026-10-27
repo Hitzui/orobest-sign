@@ -19,6 +19,7 @@ import platform.PDFKit.PDFView
 import platform.Foundation.NSURL
 import platform.WebKit.WKWebView
 import com.jomiro.app.orobest_sign.feature.clients.domain.model.ClientFile
+import org.jetbrains.skia.impl.use
 
 internal actual fun decodeClientDocumentImage(bytes: ByteArray): ImageBitmap =
     Image.makeFromEncoded(bytes).use { it.toComposeImageBitmap() }

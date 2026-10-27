@@ -14,7 +14,7 @@ fun main() = application {
     }
     Window(
         onCloseRequest = ::exitApplication,
-        title = "OroBest Sign",
+        title = "Orobest",
         icon = appIcon,
     ) {
         App()

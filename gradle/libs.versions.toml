@@ -20,6 +20,7 @@ kotlinx-serialization = "1.11.0"
 composables-ui = "0.2.0"
 composables-icons = "1.0.0"
 slf4j = "2.0.19"
+ntwain = "3.7.6"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }

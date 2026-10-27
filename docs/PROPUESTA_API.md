@@ -100,8 +100,11 @@ Enviar `multipart/form-data` mediante POST:
 | `operation_id` | UUID de la operación; conservarlo en cada reintento idéntico |
 | `compra_revision` | `revision` devuelta por el detalle consultado |
 | `base_version` | 0 para primera firma; versión actual para editar |
+| `huella` (opcional) | Archivo PNG de la huella del cliente; solo Windows/JVM lo envía |
 
 El servidor verifica la compra y su agencia, decodifica el PNG y genera una imagen normalizada con fondo blanco. Una edición crea **una versión nueva** y conserva archivos/metadatos anteriores.
+
+Si se adjunta `huella`, el servidor valida el PNG (máximo 2 MiB y 2048 × 2048) y guarda su Base64 en `compra.huella` dentro de la misma transacción del guardado de firma. La migración `m261026_000040_add_huella_to_compra.php` añade `LONGTEXT NULL`; el comprobante web la incluye si existe. Base64 no cifra el contenido. La app solo adquiere esta imagen en escritorio Windows con U.are.U instalado; no persiste plantillas ni implementa asistencia.
 
 Respuesta: `data.firma` incluye ID, compra, versión, usuario que registró, revisión de compra, SHA-256, MIME, tamaño, dimensiones y fecha UTC. `data.replayed` indica que la misma operación ya había sido confirmada.
 
@@ -113,6 +116,8 @@ Respuesta: `data.firma` incluye ID, compra, versión, usuario que registró, rev
 - La comprobación de versión está protegida por una transacción y bloqueo de la compra.
 
 Una compra modificada conserva su firma histórica y queda marcada en el detalle como modificada. No se bloquea ni cambia la edición de compras en la web. Las anuladas conservan las imágenes; no aparecen en el listado de vigentes ni admiten nuevas firmas. El comprobante presenta la versión más reciente disponible, manteniendo la proporción original de 2:1 y un ancho de impresión de 60 mm; la fecha del comprobante permanece debajo. Si no hay archivo de firma disponible, se conserva la línea para firma manuscrita.
+
+Para mejorar la legibilidad en matricial y láser, la impresión genera una copia en memoria de negro sólido sobre blanco y dilata suavemente el trazo (aproximadamente 0,10 mm por lado a 60 mm de ancho). Este tratamiento también se aplica al volver a imprimir firmas anteriores; no cambia el PNG almacenado, su hash, su versión ni la imagen azul descargada por la API.
 
 ## Imágenes y almacenamiento
 

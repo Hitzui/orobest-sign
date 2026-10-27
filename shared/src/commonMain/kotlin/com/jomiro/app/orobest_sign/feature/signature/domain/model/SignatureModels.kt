@@ -19,6 +19,7 @@ data class SignatureUpload(
     val purchaseRevision: String,
     val baseVersion: Int,
     val png: ByteArray,
+    val fingerprintPng: ByteArray? = null,
 )
 
 data class SavedSignature(val purchaseId: Int, val version: Int)

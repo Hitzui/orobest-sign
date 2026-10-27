@@ -132,6 +132,12 @@ $logoDataUri = $logoContenido !== false
         </td>
         <td style="width: 50%; text-align: center; border: none;">
             <div style="margin: 0 auto; text-align: center;">
+                <?php if (!empty($huellaDataUri)): ?>
+                    <div style="text-align: center; margin: 0 0 2mm;">
+                        <img src="<?= $huellaDataUri ?>" alt="Huella del Cliente" style="width: 25mm; height: 25mm; object-fit: contain;">
+                    </div>
+                    <div style="line-height: 1.35; margin-bottom: 2mm;">Huella del Cliente</div>
+                <?php endif; ?>
                 <?php if (!empty($firmaDataUri)): ?>
                     <div style="text-align: center; margin: 0 0 2mm;">
                         <img src="<?= $firmaDataUri ?>" alt="Firma del Cliente" style="width: 60mm; height: auto;">

@@ -47,6 +47,25 @@ class FirmaService
         return [$png, $size[0], $size[1]];
     }
 
+    /** Valida y canoniza la imagen de huella enviada como Base64 PNG. */
+    private function normalizeFingerprint($base64): ?string
+    {
+        if ($base64 === null || $base64 === '') {
+            return null;
+        }
+        if (!is_string($base64) || strlen($base64) > 2800000
+            || !preg_match('/^[A-Za-z0-9+\\/]*={0,2}$/D', $base64)) {
+            throw new ApiException(422, 'invalid_fingerprint', 'La huella debe ser una imagen PNG Base64 válida.');
+        }
+        $png = base64_decode($base64, true);
+        $size = $png === false ? false : @getimagesizefromstring($png);
+        if ($png === false || strlen($png) > self::MAX_BYTES || !$size || $size[2] !== IMAGETYPE_PNG
+            || $size[0] < 1 || $size[1] < 1 || $size[0] > 2048 || $size[1] > 2048) {
+            throw new ApiException(422, 'invalid_fingerprint', 'La huella debe ser PNG de hasta 2048 × 2048 píxeles y 2 MiB.');
+        }
+        return base64_encode($png);
+    }
+
     public function save(int $id, int $user, int $agency, array $params, string $uploadedPath): array
     {
         $operation = $params['operation_id'] ?? '';
@@ -57,6 +76,7 @@ class FirmaService
         }
         $base = CompraAccessService::integer($params['base_version'] ?? null, 'base_version', 0, 2147483646);
         [$png, $width, $height] = $this->normalizePng($uploadedPath);
+        $fingerprint = $this->normalizeFingerprint($params['huella'] ?? null);
         $hash = hash('sha256', $png);
         $operation = strtolower($operation);
         $access = new CompraAccessService();
@@ -73,6 +93,12 @@ class FirmaService
                 if ((int) $previous->idcompra !== $id || (int) $previous->version !== $base + 1
                     || !hash_equals($previous->sha256, $hash) || !hash_equals($previous->compra_revision, $revision)) {
                     throw new ApiException(409, 'operation_conflict', 'El identificador de operación ya tiene otro contenido.');
+                }
+                if ($fingerprint !== null) {
+                    $currentFingerprint = $db->createCommand('SELECT huella FROM compra WHERE idcompra = :id', [':id' => $id])->queryScalar();
+                    if (!is_string($currentFingerprint) || !hash_equals($currentFingerprint, $fingerprint)) {
+                        throw new ApiException(409, 'operation_conflict', 'La huella asociada a esta operación no coincide con la guardada.');
+                    }
                 }
                 $transaction->commit();
                 return ['firma' => $previous->metadata(), 'replayed' => true];
@@ -103,6 +129,9 @@ class FirmaService
                 'width' => $width, 'height' => $height, 'created_at' => gmdate('Y-m-d H:i:s'),
             ], false);
             $signature->save(false);
+            if ($fingerprint !== null) {
+                $db->createCommand()->update('compra', ['huella' => $fingerprint], ['idcompra' => $id])->execute();
+            }
             $transaction->commit();
             return ['firma' => $signature->metadata(), 'replayed' => false];
         } catch (\Throwable $e) {
@@ -169,5 +198,16 @@ class FirmaService
         }
         $path = $this->storagePath() . '/' . $signature->file_path;
         return is_file($path) ? $path : null;
+    }
+
+    /** Genera solo en memoria la variante de alto contraste para matricial/láser. */
+    public function latestPngForPrint(int $id): ?string
+    {
+        $path = $this->latestImageForPrint($id);
+        if ($path === null) {
+            return null;
+        }
+        $png = @file_get_contents($path);
+        return $png === false ? null : (new SignaturePrintRenderer())->render($png);
     }
 }
